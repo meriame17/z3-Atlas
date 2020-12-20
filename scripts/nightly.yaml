@@ -151,6 +151,19 @@ jobs:
       basePath: $(Agent.TempDirectory)\package\out
       packDestination: $(Build.ArtifactStagingDirectory)
       verbosityPack: detailed
+  - task: PythonScript@0
+    displayName: 'Python: assemble files again'
+    inputs:
+      scriptSource: 'filepath'
+      scriptPath: scripts\mk_nuget_task.py
+      workingDirectory: $(Agent.TempDirectory)\package
+      arguments:
+        $(Agent.TempDirectory)\package
+        $(ReleaseVersion)
+        $(Build.Repository.Uri)
+        $(Build.SourceBranchName)
+        $(Build.SourceVersion)
+        $(Build.SourcesDirectory)
   - task: NugetCommand@2
     displayName: 'NuGet Pack Symbols'
     inputs:
