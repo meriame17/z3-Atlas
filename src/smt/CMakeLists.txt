@@ -77,6 +77,7 @@ z3_add_component(smt
     user_propagator.cpp
     uses_theory.cpp
     watch_list.cpp
+    theory_trau/theory_trau.cpp
   COMPONENT_DEPENDENCIES
     bit_blaster
     cmd_context

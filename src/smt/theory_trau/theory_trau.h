@@ -101,7 +101,7 @@ namespace smt
         void handle_word_eq(expr_ref lhs, expr_ref rhs);
         void handle_word_diseq(expr_ref lhs, expr_ref rhs);
         ptr_vector<expr> get_int_vars_from_aut(pautomaton *aut, unsigned s);
-        expr_ref construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound);
+        app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound);
         std::vector<std::pair<expr_ref,expr_ref>>  init_int_vars(unsigned p,unsigned q, std::string s);
         app *mk_fresh_const(char const *name, sort *s);
      

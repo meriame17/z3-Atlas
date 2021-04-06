@@ -27,7 +27,9 @@ namespace smt {
      m{m}, 
      m_length(m),
      m_fresh_id(0) {}
+  theory_trau::~theory_trau(){
 
+            }
     void theory_trau::display(std::ostream &os) const {
         os << "theory_str display" << std::endl;
     }
@@ -300,7 +302,9 @@ namespace smt {
 
        // pautomaton* pfa_left = m_pfa->create_flat(m,0,0);
         unsigned num_vars= p_bound*(q_bound+1)-1;
-                 
+        sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
+       
+              
 
 
         obj_map<expr,std::pair<std::vector<expr_ref>,std::vector<expr_ref>>> fresh_int_vars_l;
@@ -312,12 +316,16 @@ namespace smt {
         std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars;
         expr_ref eps(m);
         expr_ref eps_p(m);
-        expr_ref phi_pa_init(m);
-        expr_ref phi_pa_final(m);
+        char const phi_i='i';
+        char const phi_f='f';
+        char const ph_p='p';
+
+        expr_ref phi_pa_init (mk_fresh_const(&phi_i, int_sort), m); 
+        expr_ref phi_pa_final (mk_fresh_const(&phi_f, int_sort), m); 
         expr_ref one(m_util_a.mk_int(0), m);
 
 
-        expr_ref phi_left(m);
+        app*  phi_left;
         for(auto const& ex: lhs_vars){
                      
 
@@ -327,11 +335,12 @@ namespace smt {
 
             all_vars_l.insert(all_vars_l.end(),fresh_vars_int.begin(), fresh_vars_int.end() );
 
+
             p_l+=p_bound;
 
             
         }
-         expr_ref phi_right(m);
+         app*   phi_right;
          for(auto const& ex: rhs_vars){
 
             std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,p_bound,"a");///mk_pp(ex, m));
@@ -353,11 +362,12 @@ namespace smt {
 
                     
                     std::pair<expr_ref, expr_ref> i_var=std::make_pair(all_vars_r[k].first, all_vars_l[j].first);
-                    expr_ref p_pro(m);
+                    expr_ref p_pro(mk_fresh_const(&ph_p+k+j, int_sort), m);
 
                     std::pair<std::pair<expr_ref, expr_ref>,  expr_ref> pair= std::make_pair(i_var, p_pro);
                     product_vars.push_back(pair);
-                    // Parikh formula construction
+
+                    // Parikh formula constr uction
                     if( 
                          (k==0 && j==0)  ||
                          (k==0 && j== q_bound) || 
@@ -365,6 +375,7 @@ namespace smt {
                          (k==q_bound && j ==q_bound)
                         )
                            phi_pa_init= m_util_a.mk_add(p_pro, phi_pa_init);
+
 
                     if(
                         (k == all_vars_r.size()-1 && j == all_vars_l.size()-1) ||
@@ -380,9 +391,10 @@ namespace smt {
                 }
             }
 
+
             for(unsigned k=0; k<all_vars_l.size(); k++){
                  std::pair<expr_ref, expr_ref> i_var=std::make_pair(eps, all_vars_l[k].first);
-                 expr_ref p_pro(m);
+                    expr_ref p_pro(mk_fresh_const(&ph_p+k, int_sort), m);
 
                 std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
                 product_vars.push_back(pair);
@@ -392,27 +404,27 @@ namespace smt {
              for(unsigned k=0; k<all_vars_r.size(); k++){
                  std::pair<expr_ref, expr_ref> i_var=std::make_pair(all_vars_r[k].first, eps);
                 std::pair<expr_ref, expr_ref> p_var=std::make_pair(all_vars_r[k].second, eps_p);
-                 expr_ref p_pro(m);
+                expr_ref p_pro(mk_fresh_const(&ph_p+k, int_sort), m);
                 std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
                 product_vars.push_back(pair);
 
             }
+
         //Product formula
     
         //phi_#
-            expr_ref phi_p(m);
+            app* phi_p=m.mk_true();
+
             for(auto const& r_var: all_vars_r ){
-                  expr_ref sum(m);
+                  expr_ref sum(mk_fresh_const(&ph_p+'s', int_sort), m);
               
                 for(auto const& elt: product_vars){
-
                         if( r_var.first == elt.first.first) sum= m_util_a.mk_add(sum,elt.second );
-
                 }
             phi_p=m.mk_and(m_util_a.mk_eq(sum,r_var.second), phi_p);
             }
             for(auto const& l_var: all_vars_l ){
-                  expr_ref sum(m);
+                  expr_ref sum(mk_fresh_const(&ph_p+'s', int_sort), m);
               
                 for(auto const& elt: product_vars){
 
@@ -422,15 +434,28 @@ namespace smt {
             phi_p=m.mk_and(m_util_a.mk_eq(sum,l_var.second), phi_p);
             }
         // phi_=
-              
+                        std::cout << product_vars.size()<< "\n";
+                        int kk=0;
                 for(auto const& elt: product_vars){
-                    expr_ref ge(m);
+                    if(kk <400){ 
+                    expr_ref ge(mk_fresh_const(&ph_p+'g', int_sort), m);
+
                     expr_ref zero(m_util_a.mk_int(0), m);
+
                     ge= m_util_a.mk_ge(elt.second, zero); 
+
                     phi_p= m.mk_and(phi_p, m.mk_implies(ge, m_util_a.mk_eq(elt.first.first, elt.first.second)));
+                    std::cout<< __LINE__ << kk++<< "\n";
+                }
 
                 }
+                std::cout<< __LINE__ << "\n";
+
         //Parikh image formula   
+                        std::cout<< __LINE__ << "\n";
+        expr_ref sse(m);
+        sse= m.mk_and(sse, phi_pa_init);
+
 
         phi_pa_init = m_util_a.mk_eq(phi_pa_init, one);
         phi_pa_final = m_util_a.mk_eq(phi_pa_final, one);
@@ -442,7 +467,7 @@ namespace smt {
         */
 
         phi_p= m.mk_and(m.mk_and(m.mk_and(phi_left, phi_right), m.mk_and(phi_pa_init,phi_pa_final )), phi_p);
-
+std::cout<< __LINE__ << "\n";
         add_axiom(phi_p);
 
 
@@ -452,7 +477,7 @@ namespace smt {
 
 
 
-    expr_ref theory_trau::construct_basic_str_ctr(
+    app* theory_trau::construct_basic_str_ctr(
         ast_manager& m,
         std::vector<std::pair<expr_ref, expr_ref>> vars,
         unsigned l_bound,
@@ -461,12 +486,11 @@ namespace smt {
 
         context& ctx=get_context();
         
-        expr_ref res(m);
-        bool_var bv = ctx.mk_bool_var(res);
+        //expr_ref res(m);
+        app * res     = m.mk_true();
+        //mk_bool_var(t);
+        //bool_var bv = ctx.mk_bool_var(res);
 
-
-
-         
 
         expr_ref print_char_min(m);
         expr_ref print_char_max(m);
@@ -476,6 +500,7 @@ namespace smt {
         print_char_max = m_util_a.mk_numeral(rational(PRINT_CHAR_MAX), true);
 
         // PRINTABLE CHAR INTERVAL
+
         for(auto& v: vars){
 
         app* gt_min = m_util_a.mk_ge(v.first,print_char_min);
@@ -483,22 +508,21 @@ namespace smt {
 
         app* le_max = m_util_a.mk_le(v.first,print_char_max);
 
-           // res = m.mk_and(res,gt_min);
-       // std::cout<< "tst"<< __LINE__<< mk_pp(m.get_sort(res),m)<< "\n";
-       // std::cout<< "tst"<< __LINE__<< mk_pp(m.get_sort(le_max),m)<< "\n";
+        
 
 
 
         res = m.mk_and(res,le_max);
-        std::cout<< "tst"<< __LINE__<< "\n";
         }
         // vars in the same loop have same parikh image
 
-        for(unsigned j=0; j<vars.size(); j+s_bound){   
-            expr_ref ex(m);     
-            std::cout<< "tst"<< __LINE__<< "\n";
 
-            for(unsigned k=0; k<s_bound; k++){
+        for(unsigned j=0; j<vars.size(); j=j+1+s_bound){  
+
+            app * ex     = m.mk_true();
+
+            for(unsigned k=1; k<s_bound; k++){
+
                 app* eq=m_util_a.mk_eq(vars[j].second,vars[j+k].second);
                 ex=m.mk_and(ex, eq);
             }
@@ -509,7 +533,6 @@ namespace smt {
 
         }
         
-
 
         return res;
     }
@@ -1116,7 +1139,7 @@ namespace smt {
     model_value_proc *theory_trau::mk_value(enode *const n, model_generator &mg) {
         app *const tgt = n->get_owner();
         (void) m;
-        STRACE("str", tout << "mk_value: sort is " << mk_pp(m.get_sort(tgt), m) << ", "
+        STRACE("str", tout << "mk_value: sort is " << mk_pp(tgt->get_sort(), m) << ", "
                            << mk_pp(tgt, m) << '\n';);
         return alloc(expr_wrapper_proc, tgt);
     }
