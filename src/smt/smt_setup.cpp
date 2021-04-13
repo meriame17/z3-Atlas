@@ -38,7 +38,7 @@ Revision History:
 #include "smt/theory_pb.h"
 #include "smt/theory_fpa.h"
 #include "smt/theory_str.h"
-#include "smt/theory_trau/theory_trau.h"
+#include "smt/theory_atlas/theory_atlas.h"
 
 namespace smt {
 
@@ -716,8 +716,8 @@ namespace smt {
     }
 
     void setup::setup_QF_S() {
-         if (m_params.m_string_solver == "trau") {
-            setup_trau();
+         if (m_params.m_string_solver == "atlas") {
+            setup_atlas();
         }
         if (m_params.m_string_solver == "z3str3") {
             setup_str();
@@ -904,8 +904,8 @@ namespace smt {
         if (m_params.m_string_solver == "z3str3") {
             setup_str();
         } 
-          if (m_params.m_string_solver == "trau") {
-            setup_trau();
+          if (m_params.m_string_solver == "atlas") {
+            setup_atlas();
         }
         else if (m_params.m_string_solver == "seq") {
             setup_seq();
@@ -943,9 +943,9 @@ namespace smt {
         m_context.register_plugin(alloc(theory_str, m_context, m_manager, m_params));
     }
 
-    void setup::setup_trau() {
+    void setup::setup_atlas() {
         setup_arith();
-        m_context.register_plugin(alloc(theory_trau, m_context, m_manager, m_params));
+        m_context.register_plugin(alloc(theory_atlas, m_context, m_manager, m_params));
     }
     void setup::setup_seq() {
         m_context.register_plugin(alloc(smt::theory_seq, m_context));

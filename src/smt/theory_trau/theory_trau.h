@@ -22,7 +22,7 @@
 #include "util/union_find.h"
 #include "ast/rewriter/seq_rewriter.h"
 #include "ast/rewriter/th_rewriter.h"
-//#include "smt/theory_trau/pf_automaton.h"
+//#include "smt/theory_atlas/pf_automaton.h"
 //#include "smt/theory_str/pf_automaton_def.h"
 
 #define PRINT_CHAR_MIN 33
@@ -31,7 +31,7 @@
 namespace smt
 {
 
-    class theory_trau : public theory
+    class theory_atlas : public theory
     {
 
         int m_scope_level = 0;
@@ -76,13 +76,13 @@ namespace smt
 
     public:
 
-        theory_trau(context& c, ast_manager & m, theory_str_params const & params);
-        ~theory_trau() override;
+        theory_atlas(context& c, ast_manager & m, theory_str_params const & params);
+        ~theory_atlas() override;
         typedef automaton<expr, ast_manager> pautomaton;
 
-        char const *get_name() const override { return "trau"; }
+        char const *get_name() const override { return "atlas"; }
         void display(std::ostream &os) const override;
-        theory *mk_fresh(context *c) override { return alloc(theory_trau, *c, c->get_manager(), m_params); }
+        theory *mk_fresh(context *c) override { return alloc(theory_atlas, *c, c->get_manager(), m_params); }
         void init() override;
         theory_var mk_var(enode *n) override;
         void apply_sort_cnstr(enode *n, sort *s) override;
@@ -123,7 +123,7 @@ namespace smt
           * 
           * 
           * */
-        //void theory_trau::handle_word_eq(expr * lhs, expr * rhs);
+        //void theory_atlas::handle_word_eq(expr * lhs, expr * rhs);
 
         /**
           * 
@@ -183,4 +183,4 @@ namespace smt
     };
 }
 
-#endif /* _THEORY_trau_H_ */
+#endif /* _THEORY_atlas_H_ */

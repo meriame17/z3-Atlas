@@ -2,7 +2,7 @@
 #include <sstream>
 #include <math.h>    
 #include "ast/ast_pp.h"
-#include "smt/theory_trau/theory_trau.h"
+#include "smt/theory_atlas/theory_atlas.h"
 #include "smt/smt_context.h"
 #include "smt/smt_model_generator.h"
 #include "smt/theory_lra.h"
@@ -13,13 +13,13 @@
 
 
 namespace smt {
-    bool theory_trau::is_over_approximation = false;
+    bool theory_atlas::is_over_approximation = false;
 
     namespace {
         bool IN_CHECK_FINAL = false;
     }
 
-    theory_trau::theory_trau(context& ctx,ast_manager &m, const theory_str_params &params):
+    theory_atlas::theory_atlas(context& ctx,ast_manager &m, const theory_str_params &params):
      theory(ctx, m.mk_family_id("seq")), 
      m_params{params}, 
      m_rewrite{m}, 
@@ -28,20 +28,20 @@ namespace smt {
      m{m}, 
      m_length(m),
      m_fresh_id(0) {}
-  theory_trau::~theory_trau(){
+  theory_atlas::~theory_atlas(){
 
             }
-    void theory_trau::display(std::ostream &os) const {
+    void theory_atlas::display(std::ostream &os) const {
         os << "theory_str display" << std::endl;
     }
 
-    void theory_trau::init() {
+    void theory_atlas::init() {
         std::cout<< "INIT" <<"\n";
         theory::init();
         STRACE("str", if (!IN_CHECK_FINAL) tout << "init\n";);
     }
 
-    enode *theory_trau::ensure_enode(expr *e) {
+    enode *theory_atlas::ensure_enode(expr *e) {
         context &ctx = get_context();
         if (!ctx.e_internalized(e)) {
             ctx.internalize(e, false);
@@ -51,7 +51,7 @@ namespace smt {
         return n;
     }
 
-    theory_var theory_trau::mk_var(enode *const n) {
+    theory_var theory_atlas::mk_var(enode *const n) {
         if (!m_util_s.is_seq(n->get_owner()) &&
             !m_util_s.is_re(n->get_owner())) {
             return null_theory_var;
@@ -67,7 +67,7 @@ namespace smt {
     }
 
 
-    bool theory_trau::internalize_atom(app *const atom, const bool gate_ctx) {
+    bool theory_atlas::internalize_atom(app *const atom, const bool gate_ctx) {
 
         (void) gate_ctx;
         std::cout<< "i am inside internalize atom" <<std::endl;
@@ -81,7 +81,7 @@ namespace smt {
         return internalize_term(atom);
     }
 
-    bool theory_trau::internalize_term(app *const term) {
+    bool theory_atlas::internalize_term(app *const term) {
         context &ctx = get_context();
     
 
@@ -112,11 +112,11 @@ namespace smt {
         return true;
     }
 
-    void theory_trau::apply_sort_cnstr(enode *n, sort *s) {
+    void theory_atlas::apply_sort_cnstr(enode *n, sort *s) {
         mk_var(n);
     }
 
-    void theory_trau::print_ctx(context &ctx) {  // test_hlin
+    void theory_atlas::print_ctx(context &ctx) {  // test_hlin
         std::cout << "~~~~~ print ctx start ~~~~~~~\n";
 //        context& ctx = get_context();
         unsigned nFormulas = ctx.get_num_asserted_formulas();
@@ -140,7 +140,7 @@ namespace smt {
         std::cout << "~~~~~ print ctx end ~~~~~~~~~\n";
     }
 
-    void theory_trau::print_ast(expr *e) {  // test_hlin
+    void theory_atlas::print_ast(expr *e) {  // test_hlin
         ast_manager m = get_manager();
         unsigned int id = e->get_id();
         ast_kind ast = e->get_kind();
@@ -160,7 +160,7 @@ namespace smt {
     }
 
 
-    void theory_trau::init_search_eh() {
+    void theory_atlas::init_search_eh() {
         STRACE("str", tout << __LINE__ << " enter " << __FUNCTION__ << std::endl;);
         context &ctx = get_context();
         unsigned nFormulas = ctx.get_num_asserted_formulas();
@@ -173,7 +173,7 @@ namespace smt {
 
     }
 
-    void theory_trau::string_theory_propagation(expr *expr) {
+    void theory_atlas::string_theory_propagation(expr *expr) {
 
         STRACE("str", tout << __LINE__ << " enter " << __FUNCTION__ << std::endl;);
 
@@ -211,7 +211,7 @@ namespace smt {
 
     }
 
-    void theory_trau::handle_word_eq(expr_ref lhs, expr_ref rhs){
+    void theory_atlas::handle_word_eq(expr_ref lhs, expr_ref rhs){
 
 
         ast_manager & m = get_manager();
@@ -246,7 +246,7 @@ namespace smt {
 
 
     }
-     void theory_trau::word_eq_under_approx(expr* lhs, expr* rhs, expr_ref_vector & items){
+     void theory_atlas::word_eq_under_approx(expr* lhs, expr* rhs, expr_ref_vector & items){
 
         /*TODO: 
                 -get string vars
@@ -525,7 +525,7 @@ namespace smt {
 
     }
     
-  app* theory_trau::construct_basic_str_ctr(
+  app* theory_atlas::construct_basic_str_ctr(
         ast_manager& m,
         std::vector<std::pair<expr_ref, expr_ref>> vars,
         unsigned l_bound,
@@ -578,7 +578,7 @@ namespace smt {
         return res;
     }
 
-    app* theory_trau::construct_basic_str_ctr(
+    app* theory_atlas::construct_basic_str_ctr(
         ast_manager& m,
         std::vector<std::pair<expr_ref, expr_ref>> vars,
         unsigned l_bound,
@@ -638,7 +638,7 @@ namespace smt {
         return res;
     }
 
-    std::vector<std::pair<expr_ref,expr_ref>>  theory_trau:: mk_fresh_vars(expr_ref str_v, unsigned cut_size, std::string s){
+    std::vector<std::pair<expr_ref,expr_ref>>  theory_atlas:: mk_fresh_vars(expr_ref str_v, unsigned cut_size, std::string s){
 
         SASSERT(cut_size % q_bound !=0);
         /* cut variables according to cut_size , if =1 ==> original algo */
@@ -688,7 +688,7 @@ namespace smt {
 
     }
     
-    std::vector<std::pair<expr_ref,expr_ref>>  theory_trau::init_int_vars(unsigned p,unsigned q, std::string s){
+    std::vector<std::pair<expr_ref,expr_ref>>  theory_atlas::init_int_vars(unsigned p,unsigned q, std::string s){
         std::vector<std::pair<expr_ref, expr_ref>> res;
         ast_manager &m = get_manager();
         unsigned k=0;
@@ -717,7 +717,7 @@ namespace smt {
     }
 
 
-    app *theory_trau::mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l)
+    app *theory_atlas::mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l)
     {
         string_buffer<64> buffer;
         buffer << name;
@@ -730,7 +730,7 @@ namespace smt {
         m_fresh_id++;
         return m_util_s.mk_skolem(symbol(buffer.c_str()), 0, nullptr, s);
     }
-        app *theory_trau::mk_fresh_const(std::string name, sort *s, unsigned k)
+        app *theory_atlas::mk_fresh_const(std::string name, sort *s, unsigned k)
     {
         string_buffer<64> buffer;
         buffer << name;
@@ -742,7 +742,7 @@ namespace smt {
         m_fresh_id++;
         return m_util_s.mk_skolem(symbol(buffer.c_str()), 0, nullptr, s);
     }
-    ptr_vector<expr> theory_trau::get_int_vars_from_aut(pautomaton* aut, unsigned s){
+    ptr_vector<expr> theory_atlas::get_int_vars_from_aut(pautomaton* aut, unsigned s){
 
         ptr_vector<expr> result;
 
@@ -755,7 +755,7 @@ namespace smt {
         //return nullptr;
     }
     
-    void theory_trau::get_nodes_in_concat(expr * node, ptr_vector<expr> & nodeList) {
+    void theory_atlas::get_nodes_in_concat(expr * node, ptr_vector<expr> & nodeList) {
         app * a_node = to_app(node);
         expr * leftArg = nullptr, * rightArg = nullptr;
         if (!m_util_s.str.is_concat(a_node, leftArg, rightArg)) {
@@ -766,7 +766,7 @@ namespace smt {
             get_nodes_in_concat(rightArg, nodeList);
         }
     }
-    void theory_trau::handle_word_diseq(expr_ref lhs, expr_ref rhs){
+    void theory_atlas::handle_word_diseq(expr_ref lhs, expr_ref rhs){
 
 
          ast_manager & m = get_manager();
@@ -808,7 +808,7 @@ namespace smt {
     }
 
 
-    void theory_trau::propagate_concat_axiom(enode *cat) {
+    void theory_atlas::propagate_concat_axiom(enode *cat) {
         STRACE("str", tout << __LINE__ << " enter " << __FUNCTION__ << std::endl;);
 
         bool on_screen = false;
@@ -852,7 +852,7 @@ namespace smt {
 
     }
 
-    void theory_trau::propagate_basic_string_axioms(enode *str) {
+    void theory_atlas::propagate_basic_string_axioms(enode *str) {
         bool on_screen = false;
 
         context &ctx = get_context();
@@ -943,12 +943,12 @@ namespace smt {
         }
     }
 
-    void theory_trau::add_length_axiom(expr *n) {
+    void theory_atlas::add_length_axiom(expr *n) {
         add_axiom(m_util_a.mk_ge(n, m_util_a.mk_int(0)));
 
     }
 
-    void theory_trau::relevant_eh(app *const n) {
+    void theory_atlas::relevant_eh(app *const n) {
         STRACE("str", tout << "relevant: " << mk_pp(n, get_manager()) << '\n';);
 
         if (m_util_s.str.is_length(n)) {
@@ -978,7 +978,7 @@ namespace smt {
     /*
     ensure that all elements in equivalence class occur under an application of 'length'
     */
-    void theory_trau::enforce_length(expr *e) {
+    void theory_atlas::enforce_length(expr *e) {
         enode *n = ensure_enode(e);
         enode *n1 = n;
         do {
@@ -991,7 +991,7 @@ namespace smt {
         } while (n1 != n);
     }
 
-    void theory_trau::assign_eh(bool_var v, const bool is_true) {
+    void theory_atlas::assign_eh(bool_var v, const bool is_true) {
         ast_manager &m = get_manager();
         STRACE("strg", tout << "assign: bool_var #" << v << " is " << is_true << ", "
                             << mk_pp(get_context().bool_var2expr(v), m) << "@ scope level:" << m_scope_level << '\n';);
@@ -1025,7 +1025,7 @@ namespace smt {
         }
     }
 
-    void theory_trau::new_eq_eh(theory_var x, theory_var y) {
+    void theory_atlas::new_eq_eh(theory_var x, theory_var y) {
 
 
     
@@ -1059,7 +1059,7 @@ namespace smt {
         }
     }
 
-    void theory_trau::new_diseq_eh(theory_var x, theory_var y) {
+    void theory_atlas::new_diseq_eh(theory_var x, theory_var y) {
         m_word_diseq_var_todo.push_back({x, y});
 
         ast_manager &m = get_manager();
@@ -1077,11 +1077,11 @@ namespace smt {
 
     }
 
-    bool theory_trau::can_propagate() {
+    bool theory_atlas::can_propagate() {
         return false;
     }
 
-    void theory_trau::propagate() {
+    void theory_atlas::propagate() {
         STRACE("str", if (!IN_CHECK_FINAL) tout << "propagate" << '\n';);
             /*
            for (auto const& we  : m_word_eq_todo) {
@@ -1099,7 +1099,7 @@ namespace smt {
 
 
 
-    void theory_trau::push_scope_eh() {
+    void theory_atlas::push_scope_eh() {
         m_scope_level += 1;
         m_word_eq_todo.push_scope();
         m_word_diseq_todo.push_scope();
@@ -1112,7 +1112,7 @@ namespace smt {
         STRACE("str", if (!IN_CHECK_FINAL) tout << "push_scope: " << m_scope_level << '\n';);
     }
 
-    void theory_trau::pop_scope_eh(const unsigned num_scopes) {
+    void theory_atlas::pop_scope_eh(const unsigned num_scopes) {
         m_scope_level -= num_scopes;
         m_word_eq_todo.pop_scope(num_scopes);
         m_word_diseq_todo.pop_scope(num_scopes);
@@ -1126,13 +1126,13 @@ namespace smt {
             tout << "pop_scope: " << num_scopes << " (back to level " << m_scope_level << ")\n";);
     }
 
-    void theory_trau::reset_eh() {
+    void theory_atlas::reset_eh() {
         STRACE("str", tout << "reset" << '\n';);
     }
 
 
 
-    zstring theory_trau::print_word_term(expr * e) const{
+    zstring theory_atlas::print_word_term(expr * e) const{
         zstring s;
         if (m_util_s.str.is_string(e, s)) {
             return s;
@@ -1159,7 +1159,7 @@ namespace smt {
 
     }
 
-        std::vector<expr*> theory_trau::get_vars(expr * e) const{
+        std::vector<expr*> theory_atlas::get_vars(expr * e) const{
 
              zstring s;
              std::vector<expr*> lst1;
@@ -1196,7 +1196,7 @@ namespace smt {
         }
 
 
-        zstring theory_trau::print_vars(expr * e) const{
+        zstring theory_atlas::print_vars(expr * e) const{
 
                 zstring s;
                 if (m_util_s.str.is_string(e, s)) {
@@ -1224,7 +1224,7 @@ namespace smt {
 
             }
 
-    expr* theory_trau::get_vars(expr * e, ptr_vector<expr> lst) const{
+    expr* theory_atlas::get_vars(expr * e, ptr_vector<expr> lst) const{
                // ptr_vector<expr> ex;
                zstring s;
                 if (m_util_s.str.is_string(e, s)) {
@@ -1258,7 +1258,7 @@ namespace smt {
             }
 
 
-    final_check_status theory_trau::final_check_eh() {
+    final_check_status theory_atlas::final_check_eh() {
         std::cout << "final_check starts\n"<<std::endl;
 
 
@@ -1299,7 +1299,7 @@ namespace smt {
         return FC_CONTINUE;
     }
 
-    model_value_proc *theory_trau::mk_value(enode *const n, model_generator &mg) {
+    model_value_proc *theory_atlas::mk_value(enode *const n, model_generator &mg) {
         app *const tgt = n->get_owner();
         (void) m;
         STRACE("str", tout << "mk_value: sort is " << mk_pp(tgt->get_sort(), m) << ", "
@@ -1307,35 +1307,35 @@ namespace smt {
         return alloc(expr_wrapper_proc, tgt);
     }
 
-    void theory_trau::init_model(model_generator &mg) {
+    void theory_atlas::init_model(model_generator &mg) {
         STRACE("str", if (!IN_CHECK_FINAL) tout << "init_model\n";);
     }
 
-    void theory_trau::finalize_model(model_generator &mg) {
+    void theory_atlas::finalize_model(model_generator &mg) {
         STRACE("str", if (!IN_CHECK_FINAL) tout << "finalize_model\n";);
     }
 
-    lbool theory_trau::validate_unsat_core(expr_ref_vector &unsat_core) {
+    lbool theory_atlas::validate_unsat_core(expr_ref_vector &unsat_core) {
         return l_undef;
     }
 
-    bool theory_trau::is_of_this_theory(expr *const e) const {
+    bool theory_atlas::is_of_this_theory(expr *const e) const {
         return is_app(e) && to_app(e)->get_family_id() == get_family_id();
     }
 
-    bool theory_trau::is_string_sort(expr *const e) const {
+    bool theory_atlas::is_string_sort(expr *const e) const {
         return m_util_s.str.is_string_term(e);
     }
 
-    bool theory_trau::is_regex_sort(expr *const e) const {
+    bool theory_atlas::is_regex_sort(expr *const e) const {
         return m_util_s.is_re(e);
     }
 
-    bool theory_trau::is_const_fun(expr *const e) const {
+    bool theory_atlas::is_const_fun(expr *const e) const {
         return is_app(e) && to_app(e)->get_decl()->get_arity() == 0;
     }
 
-    expr_ref theory_trau::mk_sub(expr *a, expr *b) {
+    expr_ref theory_atlas::mk_sub(expr *a, expr *b) {
         ast_manager &m = get_manager();
 
         expr_ref result(m_util_a.mk_sub(a, b), m);
@@ -1343,7 +1343,7 @@ namespace smt {
         return result;
     }
     // check if scoped vector contains elt 
-    bool theory_trau::contains_elt(app* elt, scoped_vector<app*> vec) {
+    bool theory_atlas::contains_elt(app* elt, scoped_vector<app*> vec) {
         ast_manager& m = get_manager();
 
         for (app* app_elt :  vec){
@@ -1354,7 +1354,7 @@ namespace smt {
 
 
     expr_ref
-    theory_trau::mk_skolem(symbol const &name, expr *e1, expr *e2, expr *e3, expr *e4, sort *sort) {
+    theory_atlas::mk_skolem(symbol const &name, expr *e1, expr *e2, expr *e3, expr *e4, sort *sort) {
         ast_manager &m = get_manager();
         expr *es[4] = {e1, e2, e3, e4};
         unsigned len = e4 ? 4 : (e3 ? 3 : (e2 ? 2 : 1));
@@ -1384,7 +1384,7 @@ namespace smt {
 
     }
 
-    literal theory_trau::mk_literal(expr *const e) {
+    literal theory_atlas::mk_literal(expr *const e) {
         ast_manager &m = get_manager();
         context &ctx = get_context();
         expr_ref ex{e, m};
@@ -1397,7 +1397,7 @@ namespace smt {
         return ctx.get_literal(ex);
     }
 
-    bool_var theory_trau::mk_bool_var(expr *const e) {
+    bool_var theory_atlas::mk_bool_var(expr *const e) {
         ast_manager &m = get_manager();
         STRACE("str", tout << "mk_bool_var: " << mk_pp(e, m) << '\n';);
         if (!m.is_bool(e)) {
@@ -1413,7 +1413,7 @@ namespace smt {
 
 
 
-    void theory_trau::add_axiom(expr *const e) {
+    void theory_atlas::add_axiom(expr *const e) {
         bool on_screen = true;
 
         STRACE("str_axiom", tout << __LINE__ << " " << __FUNCTION__ << mk_pp(e, get_manager()) << std::endl;);
@@ -1450,7 +1450,7 @@ namespace smt {
 
     }
 
-    void theory_trau::add_axiom(std::initializer_list<literal> ls) {
+    void theory_atlas::add_axiom(std::initializer_list<literal> ls) {
         bool on_screen = true;
 
         STRACE("str", tout << __LINE__ << " enter " << __FUNCTION__ << std::endl;);
@@ -1475,7 +1475,7 @@ namespace smt {
         0 <= i < len(s)  ->  s = xey /\ len(x) = i /\ len(e) = 1
         i < 0 \/ i >= len(s)  ->  e = empty
     */
-    void theory_trau::handle_char_at(expr *e) {
+    void theory_atlas::handle_char_at(expr *e) {
 
         ast_manager &m = get_manager();
         expr *s = nullptr, *i = nullptr;
@@ -1529,7 +1529,7 @@ namespace smt {
       It follows that:
       |e| = min(l, |s| - i) for 0 <= i < |s| and 0 < |l|
     */
-    void theory_trau::handle_substr(expr *e) {
+    void theory_atlas::handle_substr(expr *e) {
         if (!axiomatized_terms.contains(e) || false) {
             axiomatized_terms.insert(e);
 
@@ -1567,7 +1567,7 @@ namespace smt {
             add_axiom({~ls_le_0, mk_eq(le, zero, false)});
         }
     }
-    void theory_trau::handle_replace(expr *r) {
+    void theory_atlas::handle_replace(expr *r) {
         context& ctx = get_context();
         expr* a = nullptr, *s = nullptr, *t = nullptr;
         VERIFY(m_util_s.str.is_replace(r, a, s, t));
@@ -1587,7 +1587,7 @@ namespace smt {
         tightest_prefix(s, x);
 
     }
-    void theory_trau::handle_index_of(expr *i) {
+    void theory_atlas::handle_index_of(expr *i) {
         if(!axiomatized_terms.contains(i)||false) {
             axiomatized_terms.insert(i);
             ast_manager &m = get_manager();
@@ -1657,7 +1657,7 @@ namespace smt {
         }
     }
 
-    void theory_trau::tightest_prefix(expr* s, expr* x) {
+    void theory_atlas::tightest_prefix(expr* s, expr* x) {
         expr_ref s1 = mk_first(s);
         expr_ref c  = mk_last(s);
         expr_ref s1c = mk_concat(s1, m_util_s.str.mk_unit(c));
@@ -1666,7 +1666,7 @@ namespace smt {
         add_axiom({s_eq_emp, ~mk_literal(m_util_s.str.mk_contains(mk_concat(x, s1), s))});
     }
 
-    expr_ref theory_trau::mk_first(expr* s) {
+    expr_ref theory_atlas::mk_first(expr* s) {
         zstring str;
         if (m_util_s.str.is_string(s, str) && str.length() > 0) {
             return expr_ref(m_util_s.str.mk_string(str.extract(0, str.length()-1)), m);
@@ -1674,7 +1674,7 @@ namespace smt {
         return mk_skolem(symbol("seq_first"), s);
     }
 
-    expr_ref theory_trau::mk_last(expr* s) {
+    expr_ref theory_atlas::mk_last(expr* s) {
         zstring str;
         if (m_util_s.str.is_string(s, str) && str.length() > 0) {
             return expr_ref(m_util_s.str.mk_char(str, str.length()-1), m);
@@ -1684,11 +1684,11 @@ namespace smt {
         return mk_skolem(symbol("seq_last"), s, nullptr, nullptr, nullptr, char_sort);
     }
 
-    expr_ref theory_trau::mk_concat(expr* e1, expr* e2) {
+    expr_ref theory_atlas::mk_concat(expr* e1, expr* e2) {
         return expr_ref(m_util_s.str.mk_concat(e1, e2), m);
     }
 
-    literal theory_trau::mk_eq_empty(expr* _e, bool phase) {
+    literal theory_atlas::mk_eq_empty(expr* _e, bool phase) {
         context& ctx = get_context();
         expr_ref e(_e, m);
         SASSERT(m_util_s.is_seq(e));
@@ -1717,7 +1717,7 @@ namespace smt {
 
 
     // e = prefix(x, y), check if x is a prefix of y
-    void theory_trau::handle_prefix(expr *e) {
+    void theory_atlas::handle_prefix(expr *e) {
         if(!axiomatized_terms.contains(e)||false) {
             axiomatized_terms.insert(e);
 
@@ -1734,7 +1734,7 @@ namespace smt {
     }
 
 // e = prefix(x, y), check if x is not a prefix of y
-    void theory_trau::handle_not_prefix(expr *e) {
+    void theory_atlas::handle_not_prefix(expr *e) {
         if(!axiomatized_terms.contains(e)||false) {
             axiomatized_terms.insert(e);
 
@@ -1780,7 +1780,7 @@ namespace smt {
 
 
     // e = suffix(x, y), check if x is a suffix of y
-    void theory_trau::handle_suffix(expr *e) {
+    void theory_atlas::handle_suffix(expr *e) {
         if(!axiomatized_terms.contains(e)||false) {
             axiomatized_terms.insert(e);
             ast_manager &m = get_manager();
@@ -1796,7 +1796,7 @@ namespace smt {
     }
 
     // e = suffix(x, y), check if x is not a suffix of y
-    void theory_trau::handle_not_suffix(expr *e) {
+    void theory_atlas::handle_not_suffix(expr *e) {
         if(!axiomatized_terms.contains(e)||false) {
             axiomatized_terms.insert(e);
 
@@ -1843,7 +1843,7 @@ namespace smt {
     }
 
     // e = contains(x, y)
-    void theory_trau::handle_contains(expr *e) {
+    void theory_atlas::handle_contains(expr *e) {
         if(!axiomatized_terms.contains(e)||false) {
             axiomatized_terms.insert(e);
             ast_manager &m = get_manager();
@@ -1862,7 +1862,7 @@ namespace smt {
 
     }
 
-    void theory_trau::handle_in_re(expr *const e, const bool is_true) {
+    void theory_atlas::handle_in_re(expr *const e, const bool is_true) {
         expr *s = nullptr, *re = nullptr;
         VERIFY(m_util_s.str.is_in_re(e, s, re));
         ast_manager& m = get_manager();
@@ -1885,7 +1885,7 @@ namespace smt {
         m_membership_todo.push_back({{s, m}, r});
     }
 
-    void theory_trau::set_conflict(const literal_vector& lv) {
+    void theory_atlas::set_conflict(const literal_vector& lv) {
         context& ctx = get_context();
         const auto& js = ext_theory_conflict_justification{
                 get_id(), ctx.get_region(), lv.size(), lv.c_ptr(), 0, nullptr, 0, nullptr};
@@ -1893,7 +1893,7 @@ namespace smt {
         STRACE("str", ctx.display_literals_verbose(tout << "[Conflict]\n", lv) << '\n';);
     }
 
-    void theory_trau::block_curr_assignment() {
+    void theory_atlas::block_curr_assignment() {
         STRACE("str", tout << __LINE__ << " enter " << __FUNCTION__ << std::endl;);
 
         bool on_screen=false;
@@ -1928,7 +1928,7 @@ namespace smt {
 
     }
 
-    void theory_trau::dump_assignments() const {
+    void theory_atlas::dump_assignments() const {
         STRACE("str", \
                 ast_manager& m = get_manager();
                 context& ctx = get_context();
