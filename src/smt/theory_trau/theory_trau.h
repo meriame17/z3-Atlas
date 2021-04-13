@@ -25,8 +25,8 @@
 //#include "smt/theory_trau/pf_automaton.h"
 //#include "smt/theory_str/pf_automaton_def.h"
 
-#define PRINT_CHAR_MIN 1
-#define PRINT_CHAR_MAX 2
+#define PRINT_CHAR_MIN 33
+#define PRINT_CHAR_MAX 126
 
 namespace smt
 {
@@ -50,7 +50,7 @@ namespace smt
         expr_ref_vector m_length;         // length applications themselves
         unsigned m_fresh_id;
         unsigned p_bound = unsigned(2);
-        unsigned q_bound = unsigned(5);
+        unsigned q_bound = unsigned(2);
         unsigned p_r;
         unsigned p_l;
 
@@ -102,8 +102,12 @@ namespace smt
         void handle_word_diseq(expr_ref lhs, expr_ref rhs);
         ptr_vector<expr> get_int_vars_from_aut(pautomaton *aut, unsigned s);
         app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound);
+        app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound, unsigned cut_s);
         std::vector<std::pair<expr_ref,expr_ref>>  init_int_vars(unsigned p,unsigned q, std::string s);
-        app *mk_fresh_const(char const *name, sort *s);
+        std::vector<std::pair<expr_ref,expr_ref>>  mk_fresh_vars(expr_ref str_v, unsigned cut_size, std::string s);
+        app *mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l);
+        app *mk_fresh_const(std::string name, sort *s, unsigned k);
+
      
         final_check_status final_check_eh() override;
         model_value_proc *mk_value(enode *n, model_generator &mg) override;

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <sstream>
+#include <math.h>    
 #include "ast/ast_pp.h"
 #include "smt/theory_trau/theory_trau.h"
 #include "smt/smt_context.h"
@@ -240,6 +241,7 @@ namespace smt {
              std:: cout << "over app over"<<"\n";
             expr_ref_vector new_int_const(m);
             word_eq_under_approx(lhs,rhs, new_int_const);
+        
         }
 
 
@@ -287,7 +289,7 @@ namespace smt {
             
         }
 
-        */
+        */                
 
         ast_manager &m = get_manager();
          
@@ -295,7 +297,7 @@ namespace smt {
                  
 
         std::vector<expr*> lhs_vars=get_vars(lhs);
-                 
+                                 
 
         std::vector<expr*> rhs_vars=get_vars(rhs);
                  
@@ -306,7 +308,7 @@ namespace smt {
        
               
 
-
+                
         obj_map<expr,std::pair<std::vector<expr_ref>,std::vector<expr_ref>>> fresh_int_vars_l;
         obj_map<expr,std::pair<std::vector<expr_ref>,std::vector<expr_ref>>> fresh_int_vars_r;
 
@@ -316,37 +318,43 @@ namespace smt {
         std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars;
         expr_ref eps(m);
         expr_ref eps_p(m);
-        char const phi_i='i';
-        char const phi_f='f';
-        char const ph_p='p';
 
-        expr_ref phi_pa_init (mk_fresh_const(&phi_i, int_sort), m); 
-        expr_ref phi_pa_final (mk_fresh_const(&phi_f, int_sort), m); 
+                
+        expr_ref phi_pa_init (mk_fresh_const("phi", int_sort, 0, 0), m); 
+        expr_ref phi_pa_final (mk_fresh_const("phf", int_sort, 0, 0), m); 
+
+       
+                
+
         expr_ref one(m_util_a.mk_int(0), m);
 
 
         app*  phi_left;
+
         for(auto const& ex: lhs_vars){
-                     
 
-            std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,p_bound,"a");///mk_pp(ex, m));
-
+            std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,p_bound,"x");///mk_pp(ex, m));
             phi_left= construct_basic_str_ctr(m,fresh_vars_int, p_bound,q_bound);
 
             all_vars_l.insert(all_vars_l.end(),fresh_vars_int.begin(), fresh_vars_int.end() );
 
-
+                
             p_l+=p_bound;
 
             
         }
-         app*   phi_right;
-         for(auto const& ex: rhs_vars){
 
-            std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,p_bound,"a");///mk_pp(ex, m));
+         app*   phi_right;
+
+         for(auto const& ex: rhs_vars){
+                
+            std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,p_bound,"y");///mk_pp(ex, m));
+
             phi_right= construct_basic_str_ctr(m,fresh_vars_int, p_bound,q_bound);
+
             all_vars_r.insert(all_vars_r.end(),fresh_vars_int.begin(), fresh_vars_int.end());
-            p_r+= p_bound;
+
+            p_r+= p_bound;                
             
         }
 
@@ -356,13 +364,19 @@ namespace smt {
 
 
             // (p,v,q )in T_l, (p',v', q') in t_r ==> ((p,p'), (v, v'), (q,q')) T_p
-
+                
             for(unsigned k=0; k<all_vars_r.size(); k++){
                 for(unsigned j=0; j<all_vars_l.size(); j++){
 
-                    
                     std::pair<expr_ref, expr_ref> i_var=std::make_pair(all_vars_r[k].first, all_vars_l[j].first);
-                    expr_ref p_pro(mk_fresh_const(&ph_p+k+j, int_sort), m);
+
+                    expr_ref p_pro(mk_fresh_const("php", int_sort, k, j), m);
+
+                    ctx.internalize(p_pro, false);
+                    SASSERT(ctx.get_enode(p_pro) != NULL);
+                    SASSERT(ctx.e_internalized(p_pro));
+
+
 
                     std::pair<std::pair<expr_ref, expr_ref>,  expr_ref> pair= std::make_pair(i_var, p_pro);
                     product_vars.push_back(pair);
@@ -374,6 +388,7 @@ namespace smt {
                          (k == q_bound && j==0) || 
                          (k==q_bound && j ==q_bound)
                         )
+
                            phi_pa_init= m_util_a.mk_add(p_pro, phi_pa_init);
 
 
@@ -384,6 +399,7 @@ namespace smt {
                         (k == q_bound*(p_r - 1) -1 && j == q_bound*(p_l - 1)-1)
 
                        )
+
                             phi_pa_final= m_util_a.mk_add(p_pro, phi_pa_final);
 
                     
@@ -391,10 +407,15 @@ namespace smt {
                 }
             }
 
-
+/*
             for(unsigned k=0; k<all_vars_l.size(); k++){
+
                  std::pair<expr_ref, expr_ref> i_var=std::make_pair(eps, all_vars_l[k].first);
                     expr_ref p_pro(mk_fresh_const(&ph_p+k, int_sort), m);
+                    ctx.internalize(p_pro, false);
+                    SASSERT(ctx.get_enode(p_pro) != NULL);
+                    SASSERT(ctx.e_internalized(p_pro));
+
 
                 std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
                 product_vars.push_back(pair);
@@ -402,63 +423,80 @@ namespace smt {
             }
 
              for(unsigned k=0; k<all_vars_r.size(); k++){
+
                  std::pair<expr_ref, expr_ref> i_var=std::make_pair(all_vars_r[k].first, eps);
                 std::pair<expr_ref, expr_ref> p_var=std::make_pair(all_vars_r[k].second, eps_p);
                 expr_ref p_pro(mk_fresh_const(&ph_p+k, int_sort), m);
-                std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
+                    ctx.internalize(p_pro, false);
+                    SASSERT(ctx.get_enode(p_pro) != NULL);
+                    SASSERT(ctx.e_internalized(p_pro));              
+                  std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
                 product_vars.push_back(pair);
 
             }
+    */
 
         //Product formula
     
         //phi_#
-            app* phi_p=m.mk_true();
+
 
             for(auto const& r_var: all_vars_r ){
-                  expr_ref sum(mk_fresh_const(&ph_p+'s', int_sort), m);
+
+                  expr_ref sum(mk_fresh_const("php"+'s', int_sort, 0, 0), m);
               
                 for(auto const& elt: product_vars){
                         if( r_var.first == elt.first.first) sum= m_util_a.mk_add(sum,elt.second );
                 }
-            phi_p=m.mk_and(m_util_a.mk_eq(sum,r_var.second), phi_p);
+                
+            add_axiom(m_util_a.mk_eq(sum,r_var.second));
             }
             for(auto const& l_var: all_vars_l ){
-                  expr_ref sum(mk_fresh_const(&ph_p+'s', int_sort), m);
+                  expr_ref sum(mk_fresh_const("php"+'s', int_sort, 0, 0), m);
               
                 for(auto const& elt: product_vars){
 
                         if( l_var.first == elt.first.second) sum= m_util_a.mk_add(sum,elt.second );
 
                 }
-            phi_p=m.mk_and(m_util_a.mk_eq(sum,l_var.second), phi_p);
+                
+            add_axiom(m_util_a.mk_eq(sum,l_var.second));
             }
         // phi_=
-                        std::cout << product_vars.size()<< "\n";
-                        int kk=0;
+                int kk=0;
                 for(auto const& elt: product_vars){
-                    if(kk <400){ 
-                    expr_ref ge(mk_fresh_const(&ph_p+'g', int_sort), m);
+                    if(kk <2){ 
+                        kk++;
+                    expr_ref ge(mk_fresh_const("ph_p"+'g', int_sort, 0, 0), m);
+                    expr_ref tst(mk_fresh_const("tst", int_sort, 0, 0), m);
+
 
                     expr_ref zero(m_util_a.mk_int(0), m);
 
-                    ge= m_util_a.mk_ge(elt.second, zero); 
+                    ge= m_util_a.mk_ge(elt.second, zero);
+                    tst=m_util_a.mk_eq(elt.first.first, elt.first.second);
+                    app* ll=m.mk_implies(ge, tst);
 
-                    phi_p= m.mk_and(phi_p, m.mk_implies(ge, m_util_a.mk_eq(elt.first.first, elt.first.second)));
-                    std::cout<< __LINE__ << kk++<< "\n";
+                    add_axiom(ll);
+
+
+
                 }
 
                 }
-                std::cout<< __LINE__ << "\n";
 
         //Parikh image formula   
-                        std::cout<< __LINE__ << "\n";
-        expr_ref sse(m);
-        sse= m.mk_and(sse, phi_pa_init);
-
-
+  
         phi_pa_init = m_util_a.mk_eq(phi_pa_init, one);
+
         phi_pa_final = m_util_a.mk_eq(phi_pa_final, one);
+
+        SASSERT(phi_pa_init);
+        SASSERT(phi_pa_final);
+
+         add_axiom(phi_pa_init);
+
+        add_axiom(phi_pa_final);
 
 
         /*
@@ -466,16 +504,79 @@ namespace smt {
 
         */
 
-        phi_p= m.mk_and(m.mk_and(m.mk_and(phi_left, phi_right), m.mk_and(phi_pa_init,phi_pa_final )), phi_p);
-std::cout<< __LINE__ << "\n";
-        add_axiom(phi_p);
+         SASSERT(phi_left);
+         SASSERT(phi_right);
 
+
+        app* p_2=m.mk_true();
+        app* p_3=m.mk_true();
+        app* p_4= m.mk_true();
+        p_2=m.mk_and(phi_left, phi_right);
+        p_3= m.mk_and(phi_pa_init,phi_pa_final );
+        
+
+        SASSERT(p_2);
+        SASSERT(p_3);
+
+        add_axiom(p_2);
+
+        add_axiom(p_3);
 
 
     }
     
+  app* theory_trau::construct_basic_str_ctr(
+        ast_manager& m,
+        std::vector<std::pair<expr_ref, expr_ref>> vars,
+        unsigned l_bound,
+        unsigned s_bound, 
+        unsigned cut_s){
+        
+
+        context& ctx=get_context();
+        app * res     = m.mk_true();
+        expr_ref print_char_min(m);
+        expr_ref print_char_max(m);
+        expr_ref one(m);
+        one = m_util_a.mk_numeral(rational(1), true);
+        unsigned min=0, max=0, new_s=q_bound/cut_s;
+        for(unsigned k=0; k<cut_s;k++) min=PRINT_CHAR_MIN*pow(10, 2*k)+min;
+        for(unsigned k=0; k<cut_s;k++) max=PRINT_CHAR_MIN*pow(10, 3*k)+max;
 
 
+        print_char_min = m_util_a.mk_numeral(rational(min), true);
+        print_char_max = m_util_a.mk_numeral(rational(max), true);
+
+        // PRINTABLE CHAR INTERVAL
+
+        for(auto& v: vars){
+
+        app* gt_min = m_util_a.mk_ge(v.first,print_char_min);
+        app* le_max = m_util_a.mk_le(v.first,print_char_max);
+        res = m.mk_and(res,le_max);
+        }
+        // vars in the same loop have same parikh image
+
+
+        for(unsigned j=0; j<vars.size(); j=j+1+new_s){  
+
+            app * ex     = m.mk_true();
+
+            for(unsigned k=1; k<new_s; k++){
+
+                app* eq=m_util_a.mk_eq(vars[j].second,vars[j+k].second);
+                ex=m.mk_and(ex, eq);
+            }
+            res=m.mk_and(res, ex);
+            app* eq1= m_util_a.mk_eq(vars[j+new_s-1].second, one);
+
+            res=m.mk_and(ex, eq1);        
+
+        }
+        
+
+        return res;
+    }
 
     app* theory_trau::construct_basic_str_ctr(
         ast_manager& m,
@@ -536,45 +637,108 @@ std::cout<< __LINE__ << "\n";
 
         return res;
     }
+
+    std::vector<std::pair<expr_ref,expr_ref>>  theory_trau:: mk_fresh_vars(expr_ref str_v, unsigned cut_size, std::string s){
+
+        SASSERT(cut_size % q_bound !=0);
+        /* cut variables according to cut_size , if =1 ==> original algo */
+        std::vector<std::pair<expr_ref, expr_ref>> res;
+        ast_manager &m = get_manager();
+        context &ctx = get_context();
+        sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
+
+
+        unsigned k=0;
+        unsigned new_s=q_bound/cut_size;
+        for(unsigned j=0;j<p_bound;j++){
+
+            while(k<new_s){
+                    expr_ref ex (mk_fresh_const(s, int_sort, j,k), m);
+                    expr_ref ex_p(mk_fresh_const(s, int_sort, k, j), m);
+                    ctx.internalize(ex, false);
+                    SASSERT(ctx.get_enode(ex) != NULL);
+                    SASSERT(ctx.e_internalized(ex));
+                    ctx.internalize(ex_p, false);
+                    SASSERT(ctx.get_enode(ex_p) != NULL);
+                    SASSERT(ctx.e_internalized(ex_p));
+
+                    res.push_back(std::make_pair(ex,ex_p));
+
+            }
+
+
+                    expr_ref ex (mk_fresh_const(s, int_sort, j), m);
+                    expr_ref ex_p(mk_fresh_const(s, int_sort,j), m);
+                    ctx.internalize(ex, false);
+                    SASSERT(ctx.get_enode(ex) != NULL);
+                    SASSERT(ctx.e_internalized(ex));
+                    ctx.internalize(ex_p, false);
+                    SASSERT(ctx.get_enode(ex_p) != NULL);
+                    SASSERT(ctx.e_internalized(ex_p));
+                    res.push_back(std::make_pair(ex,ex_p));
+         
+        
+
+        }
+
+        return res;
+
+         
+
+
+    }
+    
     std::vector<std::pair<expr_ref,expr_ref>>  theory_trau::init_int_vars(unsigned p,unsigned q, std::string s){
         std::vector<std::pair<expr_ref, expr_ref>> res;
         ast_manager &m = get_manager();
         unsigned k=0;
         for(unsigned j=0;j<p;j++){
-         context &ctx = get_context();
+        context &ctx = get_context();
 
         sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
         if(j< p_bound) k++;
         else k=0;
-         expr_ref ex (mk_fresh_const(s.c_str()+j+k, int_sort), m);
-         expr_ref ex_p( mk_fresh_const(s.c_str()+j+k, int_sort), m);
-
+         expr_ref ex (mk_fresh_const(s, int_sort, j,k), m);
+         std::cout << "INIT----"<<  s << "______"<< mk_pp(ex,m)<< "\n";
+        expr_ref ex_p(mk_fresh_const(s, int_sort, k, j), m);
+         
         ctx.internalize(ex, false);
-        ctx.internalize(ex_p, false);
-
         SASSERT(ctx.get_enode(ex) != NULL);
-        SASSERT(ctx.get_enode(ex_p) != NULL);
-
         SASSERT(ctx.e_internalized(ex));
+        ctx.internalize(ex_p, false);
+        SASSERT(ctx.get_enode(ex_p) != NULL);
         SASSERT(ctx.e_internalized(ex_p));
 
-        ctx.mark_as_relevant(to_app(ex));
-        ctx.mark_as_relevant(to_app(ex_p));
-
-
-            res.push_back(std::make_pair(ex,ex_p));
+        res.push_back(std::make_pair(ex,ex_p));
 
         }
+
         return res;
     }
 
 
-    app *theory_trau::mk_fresh_const(char const *name, sort *s)
+    app *theory_trau::mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l)
     {
         string_buffer<64> buffer;
         buffer << name;
-        buffer << "!tmp";
-        buffer << m_fresh_id;
+        buffer << k;
+        buffer << l;
+
+
+       // buffer << "!tmp";
+       // buffer << m_fresh_id;
+        m_fresh_id++;
+        return m_util_s.mk_skolem(symbol(buffer.c_str()), 0, nullptr, s);
+    }
+        app *theory_trau::mk_fresh_const(std::string name, sort *s, unsigned k)
+    {
+        string_buffer<64> buffer;
+        buffer << name;
+        buffer << k;
+
+
+       // buffer << "!tmp";
+       // buffer << m_fresh_id;
         m_fresh_id++;
         return m_util_s.mk_skolem(symbol(buffer.c_str()), 0, nullptr, s);
     }
@@ -1069,7 +1233,6 @@ std::cout<< __LINE__ << "\n";
                 if (m_util_s.str.is_concat(e)) {
                     //e is a concat of some elements
                     for (unsigned i = 0; i < to_app(e)->get_num_args(); i++) {
-                        std::cout<<"*******"<<i<<"\n";
                         lst.push_back(get_vars(to_app(e)->get_arg(i), lst));
                          std::cout<<"showing elt:" << mk_pp(e, get_manager())<<std::endl;
 
@@ -1252,28 +1415,39 @@ std::cout<< __LINE__ << "\n";
 
     void theory_trau::add_axiom(expr *const e) {
         bool on_screen = true;
+
         STRACE("str_axiom", tout << __LINE__ << " " << __FUNCTION__ << mk_pp(e, get_manager()) << std::endl;);
 
         if (on_screen) STRACE("str_axiom",
                               std::cout << __LINE__ << " " << __FUNCTION__ << mk_pp(e, get_manager()) << std::endl;);
 
-
         if (!axiomatized_terms.contains(e) || false) {
+
             axiomatized_terms.insert(e);
             if (e == nullptr || get_manager().is_true(e)) return;
 //        string_theory_propagation(e);
             context &ctx = get_context();
+
 //        SASSERT(!ctx.b_internalized(e));
             if (!ctx.b_internalized(e)) {
+
                 ctx.internalize(e, false);
             }
+
+
             ctx.internalize(e, false);
-           /// std::cout<< "ADDING AXIOM " <<std::endl;
+            std::cout<< "ADDING AXIOM " << mk_pp(e, m)<<std::endl;
+
+           
             literal l{ctx.get_literal(e)};
+
             ctx.mark_as_relevant(l);
+
             ctx.mk_th_axiom(get_id(), 1, &l);
+            
             STRACE("str", ctx.display_literal_verbose(tout << "[Assert_e]\n", l) << '\n';);
         }
+
     }
 
     void theory_trau::add_axiom(std::initializer_list<literal> ls) {
