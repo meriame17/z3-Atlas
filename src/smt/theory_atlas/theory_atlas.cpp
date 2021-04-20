@@ -292,19 +292,11 @@ namespace smt {
         */                
 
         ast_manager &m = get_manager();
-         
-        context & ctx = get_context();
-                 
-
+        context & ctx = get_context();   
         std::vector<expr*> lhs_vars=get_vars(lhs);
-                                 
-
         std::vector<expr*> rhs_vars=get_vars(rhs);
-                 
-
        // pautomaton* pfa_left = m_pfa->create_flat(m,0,0);
         unsigned num_vars= p_bound*(q_bound+1)-1;
-        sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
        
               
 
@@ -319,15 +311,7 @@ namespace smt {
         expr_ref eps(m);
         expr_ref eps_p(m);
 
-                
-        expr_ref phi_pa_init (mk_fresh_const("phi", int_sort, 0, 0), m); 
-        expr_ref phi_pa_final (mk_fresh_const("phf", int_sort, 0, 0), m); 
-
-       
-                
-
-        expr_ref one(m_util_a.mk_int(0), m);
-
+            
 
         app*  phi_left;
 
@@ -360,52 +344,6 @@ namespace smt {
 
 
        // pautomaton* pfa_right = m_pfa->create_flat(m,0,0);
-
-
-
-            // (p,v,q )in T_l, (p',v', q') in t_r ==> ((p,p'), (v, v'), (q,q')) T_p
-                
-            for(unsigned k=0; k<all_vars_r.size(); k++){
-                for(unsigned j=0; j<all_vars_l.size(); j++){
-
-                    std::pair<expr_ref, expr_ref> i_var=std::make_pair(all_vars_r[k].first, all_vars_l[j].first);
-
-                    expr_ref p_pro(mk_fresh_const("php", int_sort, k, j), m);
-
-                    ctx.internalize(p_pro, false);
-                    SASSERT(ctx.get_enode(p_pro) != NULL);
-                    SASSERT(ctx.e_internalized(p_pro));
-
-
-
-                    std::pair<std::pair<expr_ref, expr_ref>,  expr_ref> pair= std::make_pair(i_var, p_pro);
-                    product_vars.push_back(pair);
-
-                    // Parikh formula constr uction
-                    if( 
-                         (k==0 && j==0)  ||
-                         (k==0 && j== q_bound) || 
-                         (k == q_bound && j==0) || 
-                         (k==q_bound && j ==q_bound)
-                        )
-
-                           phi_pa_init= m_util_a.mk_add(p_pro, phi_pa_init);
-
-
-                    if(
-                        (k == all_vars_r.size()-1 && j == all_vars_l.size()-1) ||
-                        (k == all_vars_r.size()-1 && j == q_bound*(p_l - 1)-1) ||
-                        (k == q_bound*(p_r - 1) -1 && j == all_vars_l.size()-1)||
-                        (k == q_bound*(p_r - 1) -1 && j == q_bound*(p_l - 1)-1)
-
-                       )
-
-                            phi_pa_final= m_util_a.mk_add(p_pro, phi_pa_final);
-
-                    
-
-                }
-            }
 
 /*
             for(unsigned k=0; k<all_vars_l.size(); k++){
@@ -485,19 +423,7 @@ namespace smt {
 
                 }
 
-        //Parikh image formula   
-  
-        phi_pa_init = m_util_a.mk_eq(phi_pa_init, one);
-
-        phi_pa_final = m_util_a.mk_eq(phi_pa_final, one);
-
-        SASSERT(phi_pa_init);
-        SASSERT(phi_pa_final);
-
-         add_axiom(phi_pa_init);
-
-        add_axiom(phi_pa_final);
-
+       
 
         /*
         collect constraints
@@ -512,15 +438,166 @@ namespace smt {
         app* p_3=m.mk_true();
         app* p_4= m.mk_true();
         p_2=m.mk_and(phi_left, phi_right);
-        p_3= m.mk_and(phi_pa_init,phi_pa_final );
         
 
         SASSERT(p_2);
-        SASSERT(p_3);
 
         add_axiom(p_2);
 
-        add_axiom(p_3);
+
+
+    }
+
+
+        void theory_atlas:: mk_product(
+        std::vector<std::pair<expr_ref, expr_ref>> lhs, 
+        std::vector<std::pair<expr_ref, expr_ref>> rhs ){
+
+        std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars;
+        std::vector<std::pair<std::string,std::string>> p;
+        expr_ref phi_pa_init (mk_fresh_const("phi", int_sort, 0, 0), m); 
+        expr_ref phi_pa_final (mk_fresh_const("phf", int_sort, 0, 0), m); 
+        expr_ref one(m_util_a.mk_int(0), m);
+
+
+
+
+             // (p,v,q )in T_l, (p',v', q') in t_r ==> ((p,p'), (v, v'), (q,q')) T_p
+                unsigned s, d, s0, d0;
+                
+            for(unsigned k=0; k<rhs.size(); k++){
+                for(unsigned j=0; j<rhs.size(); j++){
+
+
+                    // construct product states to compute the parikh image formulae
+                    if(k% (q_bound+1) == q_bound-1){   
+                        s= k==0 ? 0: k- k/q_bound +1;                  
+                        d=q_bound*k/(q_bound+1);
+                    }else if(k%(q_bound+1) ==0){
+                        s=((k-1)%q_bound)* q_bound;  
+                        d=s+q_bound;                          
+                    }else{
+                        s=k-1; d=k;
+                    }
+                    if(j% (q_bound+1) == q_bound-1){   
+                        s0= j==0 ? 0: j- j/q_bound +1;                  
+                        d0=q_bound*k/(q_bound+1);
+                    }else if(j%(q_bound+1) ==0){
+                        s0=((j-1)%q_bound)* q_bound;  
+                        d0=s0+q_bound;                          
+                    }else{
+                        s0=j-1; d=j;
+                    }
+                    std::string sr= std::to_string(s)+std::to_string(s0), ds= std::to_string(d)+std::to_string(d0) ;
+                    std::pair<std::string, std::string> pairr= std::make_pair(sr, ds);
+                    p.push_back(pairr);
+                    std::pair<expr_ref, expr_ref> i_var=std::make_pair(lhs[k].first, rhs[j].first);
+
+                    expr_ref p_pro(mk_fresh_const("ph", int_sort, k, j), m);
+                    ctx.internalize(p_pro, false);
+                    SASSERT(ctx.get_enode(p_pro) != NULL);
+                    SASSERT(ctx.e_internalized(p_pro));
+
+                    /*
+                ---  states inside lhs  loops*states inside rhs loops: one incoming edge and one outgoing
+                    */
+                }
+            }
+        parikh_img1(m, p);
+
+
+
+        }
+
+           /*
+
+                Parikh image: 
+                ---  states inside lhs  loops*states inside rhs loops: one incoming edge and one outgoing
+                ---  state inside lhs loop * states outside rhs loops : two incoming edges and two outg
+                --- state inside lhs loop * state inside rhs loop *: 4 incoming n 4 outgoing 
+                          // Parikh formula constr uction
+                if( 
+                         (k==0 && j==0)  ||
+                         (k==0 && j== q_bound) || 
+                         (k == q_bound && j==0) || 
+                         (k==q_bound && j ==q_bound)
+                        )
+
+                           phi_pa_init= m_util_a.mk_add(p_pro, phi_pa_init);
+
+                else
+                    if(
+                        (k == rhs.size()-1 && j == lhs.size()-1) ||
+                        (k == rhs.size()-1 && j == q_bound*(p_l - 1)-1) ||
+                        (k == q_bound*(p_r - 1) -1 && j == lhs.size()-1)||
+                        (k == q_bound*(p_r - 1) -1 && j == q_bound*(p_l - 1)-1)
+
+                       )
+
+
+                 phi_pa_final= m_util_a.mk_add(p_pro, phi_pa_final);
+                  //Parikh image formula   
+  
+        phi_pa_init = m_util_a.mk_eq(phi_pa_init, one);
+
+        phi_pa_final = m_util_a.mk_eq(phi_pa_final, one);
+
+        SASSERT(phi_pa_init);
+        SASSERT(phi_pa_final);
+
+         add_axiom(phi_pa_init);
+
+        add_axiom(phi_pa_final);
+
+            */
+
+    void theory_atlas::parikh_img1(ast_manager& m, 
+                std::vector< std::pair<std::string, std::string>> pv){
+        
+        expr_ref zero(m);
+        expr_ref one(m);
+        zero = m_util_a.mk_numeral(rational(0), true);
+        SASSERT(zero);
+        one = m_util_a.mk_numeral(rational(1), true);
+        SASSERT(one);
+        std::vector<expr_ref> parikh_v;
+        for(int k=0; k<pv.size(); k++){
+            expr_ref p_pro(mk_fresh_const(pv[k].first+pv[k].second, int_sort,0,0), m);
+            ctx.internalize(p_pro, false);
+            SASSERT(ctx.get_enode(p_pro) != NULL);
+            SASSERT(ctx.e_internalized(p_pro));
+            parikh_v.push_back(p_pro);
+        }
+        for(int k=0; k<pv.size(); k++){
+                 expr_ref p_pro2(mk_fresh_const("par", int_sort,k,0), m);
+
+            for(int j=0; j<pv.size(); j++){
+                
+               if(k !=j && pv[k].first == pv[j].first){
+                 p_pro2= m_util_a.mk_add(p_pro2,parikh_v[j] );
+
+                }else if(k !=j && pv[k].first == pv[j].second){
+
+                     p_pro2= m_util_a.mk_sub(p_pro2,parikh_v[j]);
+                }
+                
+            }
+        // initial state and final satate
+        if(k== 0  || k == pv.size()-1)p_pro2 = m_util_a.mk_eq(p_pro2, one); 
+        p_pro2=m_util_a.mk_eq(p_pro2, zero);
+        add_axiom(p_pro2);
+
+        }
+
+
+
+    }
+    void theory_atlas::parikh_img(ast_manager& m, 
+                std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars){
+
+            
+
+
 
 
     }
@@ -645,7 +722,6 @@ namespace smt {
         std::vector<std::pair<expr_ref, expr_ref>> res;
         ast_manager &m = get_manager();
         context &ctx = get_context();
-        sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
 
 
         unsigned k=0;
@@ -695,7 +771,6 @@ namespace smt {
         for(unsigned j=0;j<p;j++){
         context &ctx = get_context();
 
-        sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
         if(j< p_bound) k++;
         else k=0;
          expr_ref ex (mk_fresh_const(s, int_sort, j,k), m);

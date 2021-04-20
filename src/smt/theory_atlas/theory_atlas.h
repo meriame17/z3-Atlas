@@ -1,5 +1,5 @@
-#ifndef _THEORY_TRAU_H_
-#define _THEORY_TRAU_H_
+#ifndef _THEORY_ATLAS_H_
+#define _THEORY_ATLAS_H_
 
 #include <functional>
 #include <list>
@@ -53,6 +53,8 @@ namespace smt
         unsigned q_bound = unsigned(2);
         unsigned p_r;
         unsigned p_l;
+        sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
+
 
 
         std::set<std::pair<int, int>> axiomatized_eq_vars;
@@ -107,6 +109,13 @@ namespace smt
         std::vector<std::pair<expr_ref,expr_ref>>  mk_fresh_vars(expr_ref str_v, unsigned cut_size, std::string s);
         app *mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l);
         app *mk_fresh_const(std::string name, sort *s, unsigned k);
+        void mk_product(
+        std::vector<std::pair<expr_ref, expr_ref>> lhs, 
+        std::vector<std::pair<expr_ref, expr_ref>> rhs );
+         void parikh_img(ast_manager& m, 
+                std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars);
+         void parikh_img1(ast_manager& m, 
+                std::vector< std::pair<std::string, std::string>> product_vars);
 
      
         final_check_status final_check_eh() override;
@@ -183,4 +192,4 @@ namespace smt
     };
 }
 
-#endif /* _THEORY_atlas_H_ */
+#endif /* _THEORY_ATLAS_H_ */
