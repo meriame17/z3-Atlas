@@ -36,6 +36,7 @@ namespace smt
 
         int m_scope_level = 0;
         static bool is_over_approximation;
+        static bool is_under_approximation;
         const theory_str_params &m_params;
         th_rewriter m_rewrite;
         arith_util m_util_a;
@@ -51,8 +52,10 @@ namespace smt
         unsigned m_fresh_id;
         unsigned p_bound = unsigned(2);
         unsigned q_bound = unsigned(2);
+        unsigned cut_size = unsigned(1);
         unsigned p_r;
         unsigned p_l;
+
         sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
 
 
@@ -67,16 +70,21 @@ namespace smt
        // scoped_ptr<pf_automaton_t> m_pfa;
 
         scoped_vector<tvar_pair> m_word_eq_var_todo;
-        scoped_vector<app *> m_int_eq_todo;
+        scoped_vector<app*> m_int_eq_todo;
 
         scoped_vector<tvar_pair> m_word_diseq_var_todo;
+        scoped_vector<expr_ref> int_vars;
 
         scoped_vector<expr_pair> m_word_eq_todo;
+        scoped_vector<expr_pair> m_word_eq_todo2;
+
         scoped_vector<expr_pair> m_word_diseq_todo;
         scoped_vector<expr_pair> m_not_contains_todo;
         scoped_vector<expr_pair> m_membership_todo;
+        obj_map<expr, zstring> candidate_model;
 
     public:
+    
 
         theory_atlas(context& c, ast_manager & m, theory_str_params const & params);
         ~theory_atlas() override;
@@ -103,19 +111,35 @@ namespace smt
         void handle_word_eq(expr_ref lhs, expr_ref rhs);
         void handle_word_diseq(expr_ref lhs, expr_ref rhs);
         ptr_vector<expr> get_int_vars_from_aut(pautomaton *aut, unsigned s);
-        app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound);
-        app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound, unsigned cut_s);
-        std::vector<std::pair<expr_ref,expr_ref>>  init_int_vars(unsigned p,unsigned q, std::string s);
-        std::vector<std::pair<expr_ref,expr_ref>>  mk_fresh_vars(expr_ref str_v, unsigned cut_size, std::string s);
+        app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, 
+        unsigned l_bound,
+         unsigned s_bound,
+         std::vector<std::pair<std::string, std::string>> states);
+       // app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound);
+        std::vector<std::pair<expr_ref,expr_ref>>  init_int_vars(unsigned p, std::string s,
+        std::vector<std::pair<std::string, std::string>> *states);
+        std::vector<std::pair<expr_ref,expr_ref>>  mk_fresh_vars(expr_ref str_v, std::string s);
         app *mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l);
         app *mk_fresh_const(std::string name, sort *s, unsigned k);
+        app *mk_fresh_const(std::string name, sort *s);
         void mk_product(
         std::vector<std::pair<expr_ref, expr_ref>> lhs, 
-        std::vector<std::pair<expr_ref, expr_ref>> rhs );
-         void parikh_img(ast_manager& m, 
+        std::vector<std::pair<expr_ref, expr_ref>> rhs ,
+        std::vector<std::pair<std::string, std::string>> states_l,
+        std::vector<std::pair<std::string, std::string>> states_r);
+        void parikh_img(ast_manager& m, 
                 std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars);
-         void parikh_img1(ast_manager& m, 
-                std::vector< std::pair<std::string, std::string>> product_vars);
+        void parikh_img1(ast_manager& m, 
+                std::vector< std::pair<std::string, std::string>> states,
+                std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> prod_vars);
+        app * mk_value_helper(app * n) ;
+        expr * mk_string(zstring const& str);
+        expr * get_eqc_value(expr * n, bool & hasEqcValue);
+        expr * z3str2_get_eqc_value(expr * n , bool & hasEqcValue) ;
+        theory_var get_var(expr * n) const;
+        void  word_eq_over_approx(expr* lhs, expr* rhs);
+        expr*query_theory_arith_core(expr* n, model_generator& mg);
+         void add_int_axiom(expr *const e);
 
      
         final_check_status final_check_eh() override;
@@ -132,7 +156,7 @@ namespace smt
           * 
           * 
           * */
-        //void theory_atlas::handle_word_eq(expr * lhs, expr * rhs);
+        //void handle_word_eq(expr * lhs, expr * rhs);
 
         /**
           * 
