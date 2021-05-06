@@ -25,8 +25,8 @@
 //#include "smt/theory_atlas/pf_automaton.h"
 //#include "smt/theory_str/pf_automaton_def.h"
 
-#define PRINT_CHAR_MIN 33
-#define PRINT_CHAR_MAX 126
+#define PRINT_CHAR_MIN 65
+#define PRINT_CHAR_MAX 123
 
 namespace smt
 {
@@ -82,6 +82,8 @@ namespace smt
         scoped_vector<expr_pair> m_not_contains_todo;
         scoped_vector<expr_pair> m_membership_todo;
         obj_map<expr, zstring> candidate_model;
+        obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> fresh_int_vars;
+        unsigned vars_count;
 
     public:
     
@@ -108,7 +110,7 @@ namespace smt
         void push_scope_eh() override;
         void pop_scope_eh(unsigned num_scopes) override;
         void reset_eh() override;
-        void handle_word_eq(expr_ref lhs, expr_ref rhs);
+        void handle_word_eq(expr* lhs, expr* rhs);
         void handle_word_diseq(expr_ref lhs, expr_ref rhs);
         ptr_vector<expr> get_int_vars_from_aut(pautomaton *aut, unsigned s);
         app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, 
@@ -137,10 +139,12 @@ namespace smt
         expr * get_eqc_value(expr * n, bool & hasEqcValue);
         expr * z3str2_get_eqc_value(expr * n , bool & hasEqcValue) ;
         theory_var get_var(expr * n) const;
-        void  word_eq_over_approx(expr* lhs, expr* rhs);
+        void  word_eq_over_approx(expr* lhs,expr* rhs);
         expr*query_theory_arith_core(expr* n, model_generator& mg);
          void add_int_axiom(expr *const e);
-
+        app * mk_strlen(expr * e);
+        bool get_arith_value(expr* e, rational& val) const;
+        app*  construct_string_from_int_array(std::vector<std::pair<expr_ref, expr_ref>> int_varr,model_generator &mg);
      
         final_check_status final_check_eh() override;
         model_value_proc *mk_value(enode *n, model_generator &mg) override;
@@ -150,7 +154,8 @@ namespace smt
 
         void add_length_axiom(expr *n);
         bool contains_elt(app *elt, scoped_vector<app *> vec);
-        void word_eq_under_approx(expr *lhs, expr *rhs, expr_ref_vector &items);
+        bool contains_elt(app* elt, obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> vec);
+        void word_eq_under_approx(expr* lhs, expr* rhs, expr_ref_vector &items);
         void get_nodes_in_concat(expr *node, ptr_vector<expr> &nodeList);
         /**
           * 
@@ -170,6 +175,7 @@ namespace smt
         expr_ref mk_len(expr *s) const { return expr_ref(m_util_s.str.mk_length(s), m); }
 
         void add_axiom(expr *e);
+        void add_axiom_arith(expr *const e);
         literal mk_eq_empty(expr *n, bool phase = true);
         expr_ref mk_last(expr *e);
         expr_ref mk_first(expr *e);
@@ -187,7 +193,7 @@ namespace smt
         expr_ref mk_sub(expr *a, expr *b);
         zstring print_word_term(expr *a) const;
         zstring print_vars(expr *a) const;
-        std::vector<expr *> get_vars(expr *e) const;
+        std::vector<expr* > get_vars(expr* e) const;
         // expr* get_vars(expr * e);
         expr *get_vars(expr *e, ptr_vector<expr> lst) const;
 
