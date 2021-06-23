@@ -26,7 +26,7 @@
 //#include "smt/theory_str/pf_automaton_def.h"
 
 #define PRINT_CHAR_MIN 65
-#define PRINT_CHAR_MAX 123
+#define PRINT_CHAR_MAX 122
 
 namespace smt
 {
@@ -37,7 +37,11 @@ namespace smt
         int m_scope_level = 0;
         static bool is_over_approximation;
         static bool is_under_approximation;
+        static bool str_solver_checked;
+        static bool assignement_dumped;
+
         const theory_str_params &m_params;
+
         th_rewriter m_rewrite;
         arith_util m_util_a;
         seq_util m_util_s;
@@ -50,12 +54,13 @@ namespace smt
         obj_hashtable<expr> m_has_length; // is length applied
         expr_ref_vector m_length;         // length applications themselves
         unsigned m_fresh_id;
-        unsigned p_bound = unsigned(2);
-        unsigned q_bound = unsigned(2);
+        unsigned p_bound = unsigned(1);
+        unsigned q_bound = unsigned(1);
         unsigned cut_size = unsigned(1);
+        unsigned scope;
         unsigned p_r;
         unsigned p_l;
-
+       
         sort *int_sort = m.mk_sort(m_util_a.get_family_id(), INT_SORT);
 
 
@@ -70,17 +75,24 @@ namespace smt
        // scoped_ptr<pf_automaton_t> m_pfa;
 
         scoped_vector<tvar_pair> m_word_eq_var_todo;
+       //scoped_vector<expr*> vars;
         scoped_vector<app*> m_int_eq_todo;
 
         scoped_vector<tvar_pair> m_word_diseq_var_todo;
         scoped_vector<expr_ref> int_vars;
+        scoped_vector<expr_ref> pp_vars;
 
         scoped_vector<expr_pair> m_word_eq_todo;
         scoped_vector<expr_pair> m_word_eq_todo2;
+        std::vector<expr_ref> cst_vars;
 
         scoped_vector<expr_pair> m_word_diseq_todo;
         scoped_vector<expr_pair> m_not_contains_todo;
         scoped_vector<expr_pair> m_membership_todo;
+        scoped_vector<expr*> formula; 
+        unsigned flag=0;
+        
+        unsigned flag1=0;
         obj_map<expr, zstring> candidate_model;
         obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> fresh_int_vars;
         unsigned vars_count;
@@ -145,6 +157,8 @@ namespace smt
         app * mk_strlen(expr * e);
         bool get_arith_value(expr* e, rational& val) const;
         app*  construct_string_from_int_array(std::vector<std::pair<expr_ref, expr_ref>> int_varr,model_generator &mg);
+        void print_assignement();
+        std::vector<std::pair<expr_ref, expr_ref>> mk_newvar(zstring s,std::vector<std::pair<std::string, std::string>> *states);
      
         final_check_status final_check_eh() override;
         model_value_proc *mk_value(enode *n, model_generator &mg) override;
@@ -154,7 +168,15 @@ namespace smt
 
         void add_length_axiom(expr *n);
         bool contains_elt(app *elt, scoped_vector<app *> vec);
-        bool contains_elt(app* elt, obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> vec);
+        bool contains_elt(expr_ref elt, scoped_vector<expr_ref> vec);
+        bool contains_elt(expr_pair elt, scoped_vector<expr_pair> vec);
+        bool contains_elt(expr* elt, scoped_vector<expr*> vec) ;
+        bool contains_elt(app* elt, std::vector<app*> vec) ;
+        bool contains_elt(expr_ref elt, std::vector<expr_ref> vec) ;
+        bool contains(std::string elt, std::vector<std::string> vec) ;
+        bool contains_elt(expr* elt,
+          obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> vec,
+          std::vector<std::pair<expr_ref, expr_ref>> *vars);
         void word_eq_under_approx(expr* lhs, expr* rhs, expr_ref_vector &items);
         void get_nodes_in_concat(expr *node, ptr_vector<expr> &nodeList);
         /**

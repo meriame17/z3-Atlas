@@ -14,6 +14,8 @@
 
 namespace smt {
     bool theory_atlas::is_over_approximation = true;
+    bool theory_atlas::str_solver_checked= false;
+    bool theory_atlas::assignement_dumped= false;
 
     namespace {
         bool IN_CHECK_FINAL = false;
@@ -161,6 +163,7 @@ namespace smt {
 
 
     void theory_atlas::init_search_eh() {
+        
         STRACE("str", tout << __LINE__ << " enter " << __FUNCTION__ << std::endl;);
         context &ctx = get_context();
         unsigned nFormulas = ctx.get_num_asserted_formulas();
@@ -231,8 +234,10 @@ namespace smt {
 
         }else{
             TRACE("str", tout << "equality under approximations starts" << std::endl;);
-            std:: cout << "over app over"<<"\n";
+         //   std:: cout << "over app over"<<"\n";
             expr_ref_vector new_int_const(m);
+                                  
+
             word_eq_under_approx(lhs,rhs, new_int_const);
         
         }
@@ -268,38 +273,14 @@ namespace smt {
                 -convert equalities
        */
       /*
-      TEMPORARELY DISABLED: word equations with string constants
-
-        ptr_vector<expr> lhs_nodes, rhs_nodes;
+      TEMPORARELY DISABLED: word equations with string constants*/
+        expr_ref_vector len_l(m), len_r(m);
+       ptr_vector<expr> lhs_nodes, rhs_nodes;
         zstring s;
         expr_ref_vector str_vars(m);
         get_nodes_in_concat(lhs,lhs_nodes);
         get_nodes_in_concat(rhs,rhs_nodes);
-
-        for (const auto& v : lhs_nodes){
-            if (is_app(v)) {
-                app *ap = to_app(v);
-                if (!m_util_s.str.is_concat(ap)) {
-                    if (!str_vars.contains(v))
-                        str_vars.push_back(v);
-                }
-                
-            }
-            
-        }
-        for (const auto& v : rhs_nodes){
-            if (is_app(v)) {
-                app *ap = to_app(v);
-                if (!m_util_s.str.is_concat(ap)) {
-                    if (!str_vars.contains(v))
-                        str_vars.push_back(v);
-                }
-                
-            }
-            
-        }
-
-        */                
+               
 
         ast_manager &m = get_manager();
         context & ctx = get_context();   
@@ -309,7 +290,7 @@ namespace smt {
         
        // pautomaton* pfa_left = m_pfa->create_flat(m,0,0);
         unsigned num_vars= p_bound*(q_bound+1)-1;
-       
+      
                                
 
        // obj_map<expr,std::pair<std::vector<expr_ref>,std::vector<expr_ref>>> fresh_int_vars_l;
@@ -321,184 +302,149 @@ namespace smt {
         std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars;
         std::vector<std::pair<expr_ref, expr_ref>> all_vars_l;
         std::vector<std::pair<expr_ref, expr_ref>> all_vars_r;
+        expr_ref_vector lhs_len(m), rhs_len(m);
         expr_ref eps(m);
         expr_ref eps_p(m);
-        for(auto elt: lhs_vars){
-            std::string s;
-            std::stringstream ss;
-            ss <<mk_pp(elt, get_manager());
-            s = ss.str().data();
-            std::vector<std::pair<std::string, std::string>> states;
-            std::vector<std::pair<expr_ref, expr_ref>> vars=init_int_vars(num_vars,s, &states); 
-            fresh_int_vars.insert(elt, vars);
-            all_vars_l.insert(all_vars_l.end(),vars.begin(), vars.end() );
-            states_l.insert(states_l.end(),states.begin(), states.end() );
+        
+        unsigned count=0;
+        
+        for( auto elt: lhs_nodes){                           
 
+            std::string s;
+            zstring zs;
+            std::stringstream ss;
+            
+            std::vector<std::pair<std::string, std::string>> states;
+            std::vector<std::pair<expr_ref, expr_ref>> vars;
+            app *ap = to_app(elt);
+            if (!m_util_s.str.is_concat(ap)) {
+                     if(m_util_s.str.is_string(elt, zs)){
+                        //flag lhs_nodes[k];
+                        expr_ref n(m);
+                        vars= mk_newvar(zs,&states);
+                        ss <<zs;
+                        s = ss.str().data();
+
+                    }
+            else{
+ 
+         ss <<mk_pp(elt, get_manager());
+            s = ss.str().data();
+            vars =init_int_vars(num_vars,s, &states); 
+            
+            fresh_int_vars.insert(elt, vars);
+            }
+            if(count>0) {
+                
+                expr_ref n_ex(mk_fresh_const(s+std::to_string(count), int_sort), m);
+                expr_ref n_exp(mk_fresh_const(s+'p'+std::to_string(count), int_sort), m);
+                int_vars.push_back(n_ex);
+                int_vars.push_back(n_exp);
+
+               formula.push_back(m_util_a.mk_eq(n_ex, m_util_a.mk_numeral(rational(32), true)));
+                formula.push_back(m_util_a.mk_eq(n_exp, m_util_a.mk_numeral(rational(1), true)));
+
+                    
+                    
+
+                all_vars_l.push_back(std::make_pair(n_ex, n_exp));
+                states_l.push_back(std::make_pair(states_l[states_l.size()-1].second, states[0].first));
+                
+            }
+        
+            }
+            all_vars_l.insert(all_vars_l.end(),vars.begin(), vars.end() );
+            count ++;
+            states_l.insert(states_l.end(),states.begin(), states.end() );
+            
+            
         }
-         for(auto  elt: rhs_vars){
+        
+       
+        count=0;
+         for(auto  elt: rhs_nodes){
+
+
             std::string s;
             std::stringstream ss;
+            
+            std::vector<std::pair<std::string, std::string>> states;
+            std::vector<std::pair<expr_ref, expr_ref>> vars;
+            app *ap = to_app(elt);
+            zstring zs;
+            if (!m_util_s.str.is_concat(ap)){        
+
+            if(m_util_s.str.is_string(elt, zs)){
+                        //flag lhs_nodes[k];
+                        expr_ref n(m);
+                        vars= mk_newvar(zs,&states);
+                         ss<< zs;
+                         s = ss.str().data();
+
+                    }
+            else{
             ss <<mk_pp(elt, get_manager());
             s = ss.str().data();
-            std::vector<std::pair<std::string, std::string>> states;
-            std::vector<std::pair<expr_ref, expr_ref>> vars=init_int_vars(num_vars,s, &states); 
+            vars =init_int_vars(num_vars,s, &states); 
             fresh_int_vars.insert(elt, vars);
-            all_vars_r.insert(all_vars_r.end(),vars.begin(), vars.end() );
+            }
+            if(count>0) {
+                            
+                expr_ref n_ex(mk_fresh_const(s+std::to_string(count), int_sort), m);
+                expr_ref n_exp(mk_fresh_const(s+'p'+std::to_string(count), int_sort), m);
+                int_vars.push_back(n_ex);
+                int_vars.push_back(n_exp);
+                formula.push_back(m_util_a.mk_eq(n_ex, m_util_a.mk_numeral(rational(32), true)));
+                formula.push_back(m_util_a.mk_eq(n_exp, m_util_a.mk_numeral(rational(1), true)));
+            
+            
+                all_vars_r.push_back(std::make_pair(n_ex, n_exp));
+                 states_r.push_back(std::make_pair(states_r[states_r.size()-1].second, states[0].first));
+
+                            
+
+            }
+            all_vars_r.insert(all_vars_r.end(),vars.begin(), vars.end() ); count++;
             states_r.insert(states_r.end(),states.begin(), states.end() );
 
-        }
-       
 
-     //   std::vector<std::pair<expr_ref, expr_ref>> all_vars_l=init_int_vars(num_vars*lhs_vars.size(),"x", &states_l);         
-        app* phi_left= construct_basic_str_ctr(m,all_vars_l, p_bound*lhs_vars.size(),q_bound,states_l);               
-       // std::vector<std::pair<expr_ref, expr_ref>> all_vars_r=init_int_vars(num_vars*rhs_vars.size(),"y", &states_r);///mk_pp(ex, m));
-        app* phi_right= construct_basic_str_ctr(m,all_vars_r, p_bound*rhs_vars.size(),q_bound,states_r);               
+         
 
+         }
 
-               
-
-
-       /* for(auto const& ex: lhs_vars){
-
-            std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,"x", states_l);
-
-           phi_left= construct_basic_str_ctr(m,fresh_vars_int, p_bound,q_bound);
-
-            all_vars_l.insert(all_vars_l.end(),fresh_vars_int.begin(), fresh_vars_int.end() );
-
-            p_l+=p_bound;
-
-            
         }
 
-         app*   phi_right;
+        
+       for(auto elt: all_vars_r){
+           rhs_len.push_back(elt.second);
 
-         for(auto const& ex: rhs_vars){
-                
-            std::vector<std::pair<expr_ref, expr_ref>> fresh_vars_int=init_int_vars(num_vars,"y");///mk_pp(ex, m));
-                
-           phi_right= construct_basic_str_ctr(m,fresh_vars_int, p_bound,q_bound);
+        }
+        for(auto elt: all_vars_l){
+           lhs_len.push_back(elt.second);
 
-            all_vars_r.insert(all_vars_r.end(),fresh_vars_int.begin(), fresh_vars_int.end());
+        }
+        
+            formula.push_back(m_util_a.mk_eq(m_util_a.mk_add(lhs_len), m_util_a.mk_add(rhs_len)));
+  
+  
+        app* phi_right= construct_basic_str_ctr(m,all_vars_r, p_bound*rhs_vars.size(),q_bound,states_r); 
+                                            
+              
+        app* phi_left= construct_basic_str_ctr(m,all_vars_l, p_bound*lhs_vars.size(),q_bound,states_l);  
 
-            p_r+= p_bound;                
-            
-        }*/
-               
+
+
+
 
                 mk_product( all_vars_l,   all_vars_r , states_l, states_r);
                
-
-       // pautomaton* pfa_right = m_pfa->create_flat(m,0,0);
-
-/*
-            for(unsigned k=0; k<all_vars_l.size(); k++){
-
-                 std::pair<expr_ref, expr_ref> i_var=std::make_pair(eps, all_vars_l[k].first);
-                    expr_ref p_pro(mk_fresh_const(&ph_p+k, int_sort), m);
-                    ctx.internalize(p_pro, false);
-                    SASSERT(ctx.get_enode(p_pro) != NULL);
-                    SASSERT(ctx.e_internalized(p_pro));
-
-
-                std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
-                product_vars.push_back(pair);
-
-            }
-
-             for(unsigned k=0; k<all_vars_r.size(); k++){
-
-                 std::pair<expr_ref, expr_ref> i_var=std::make_pair(all_vars_r[k].first, eps);
-                std::pair<expr_ref, expr_ref> p_var=std::make_pair(all_vars_r[k].second, eps_p);
-                expr_ref p_pro(mk_fresh_const(&ph_p+k, int_sort), m);
-                    ctx.internalize(p_pro, false);
-                    SASSERT(ctx.get_enode(p_pro) != NULL);
-                    SASSERT(ctx.e_internalized(p_pro));              
-                  std::pair<std::pair<expr_ref, expr_ref>,expr_ref> pair=std::make_pair(i_var,p_pro);
-                product_vars.push_back(pair);
-
-            }
-    */
-
-        //Product formula
-    
-        //phi_#
-
-
-            for(auto const& r_var: all_vars_r ){
-                expr_ref sum(mk_fresh_const("ps", int_sort, 0, 0), m);
-              
-                for(auto const& elt: product_vars){
-                        if( r_var.first == elt.first.first) sum= m_util_a.mk_add(sum,elt.second );
-                }
-                
-            add_axiom(m_util_a.mk_eq(sum,r_var.second));
-            }
-            for(auto const& l_var: all_vars_l ){
-                
-                  expr_ref sum(mk_fresh_const("psum", int_sort, 0, 0), m);
-              
-                for(auto const& elt: product_vars){
-
-                        if( l_var.first == elt.first.second) sum= m_util_a.mk_add(sum,elt.second );
-
-                }
-                
-            add_axiom(m_util_a.mk_eq(sum,l_var.second));
-            
-            }
-        // phi_=
-                int kk=0;
-                for(auto const& elt: product_vars){
-                    
-                    if(kk <100){ 
-
-                        kk++;
-                    expr_ref ge(mk_fresh_const("phg", int_sort, 0, 0), m);
-                    expr_ref tst(mk_fresh_const("tst", int_sort, 0, 0), m);
-
-
-                    expr_ref zero(m_util_a.mk_int(0), m);
-
-                    ge= m_util_a.mk_ge(elt.second, zero);
-                    tst=m_util_a.mk_eq(elt.first.first, elt.first.second);
-                    app* ll=m.mk_or(m.mk_not(ge), tst);
-
-
-                    add_axiom(ll);
-
-                }
-
-                }
-
-       
-
-        /*
-        collect constraints
-
-        */
-
-         SASSERT(phi_left);
-         SASSERT(phi_right);
-        add_axiom(phi_left);
-        add_axiom(phi_right);
-
-       // app* p_2=m.mk_true();
-       // app* p_3=m.mk_true();
-      // app* p_4= m.mk_true();
-      //  p_2=m.mk_and(phi_left, phi_right);
-        
-
-       // SASSERT(p_2);
-
-       // add_axiom(p_2);
 
 
 
     }
 
 
-        void theory_atlas:: mk_product(
+        void theory_atlas::mk_product(
         std::vector<std::pair<expr_ref, expr_ref>> lhs, 
         std::vector<std::pair<expr_ref, expr_ref>> rhs ,
         std::vector<std::pair<std::string, std::string>> states_l,
@@ -506,9 +452,10 @@ namespace smt {
 
         std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars;
         std::vector<std::pair<std::string,std::string>> p;
-        expr_ref phi_pa_init (mk_fresh_const("phi", int_sort, 0, 0), m); 
-        expr_ref phi_pa_final (mk_fresh_const("phf", int_sort, 0, 0), m); 
-        expr_ref one(m_util_a.mk_int(0), m);
+      
+        expr_ref one(m_util_a.mk_int(1), m);
+        expr_ref zero(m_util_a.mk_int(0), m);
+
         std::vector<std::pair<std::string, std::string>> p_states;
        
              // (p,v,q )in T_l, (p',v', q') in t_r ==> ((p,p'), (v, v'), (q,q')) T_p
@@ -520,20 +467,102 @@ namespace smt {
 
                     std::pair<expr_ref, expr_ref> i_var=std::make_pair(lhs[k].first, rhs[j].first);
 
-                    expr_ref p_pro(mk_fresh_const("ph", int_sort, k, j), m);
+                    expr_ref p_pro(mk_fresh_const("pk", int_sort, k, j), m);
                     ctx.internalize(p_pro, false);
                     SASSERT(ctx.get_enode(p_pro) != NULL);
                     SASSERT(ctx.e_internalized(p_pro));
+                    enode* nex = ctx.get_enode(p_pro);
+                    ctx.mark_as_relevant(nex);
+                    if(!contains_elt( p_pro,pp_vars)) pp_vars.push_back(p_pro);
+
+
+                    formula.push_back(m_util_a.mk_ge(p_pro, zero));
+
                     product_vars.push_back(std::make_pair(i_var,p_pro));
-                    p_states.push_back(std::make_pair(states_l[k].first+states_r[j].first, states_l[k].second+states_r[j].second));
-                    /*
-                ---  states inside lhs  loops*states inside rhs loops: one incoming edge and one outgoing
-                    */
+                
+                
                 }
             }
-        std::cout << "CALLING PARIKH IMG "<< "\n";
-        parikh_img1(m, p_states,product_vars );
-        std::cout << "END CALLING PARIKH IMG "<< "\n";
+
+            //Product formula
+    
+        //phi_#
+
+            for(auto ex:int_vars){
+                    ctx.internalize(ex, false); 
+                    SASSERT(ctx.get_enode(ex) != NULL); 
+                    SASSERT(ctx.e_internalized(ex)); 
+                    enode* nex = ctx.get_enode(ex);
+
+                    ctx.mark_as_relevant(nex);
+
+            }
+
+
+            for(auto const& r_var: rhs ){
+                expr_ref_vector sum( m);
+
+                for(auto const& elt: product_vars){
+
+                        if(m.are_equal(r_var.first,elt.first.second)  )  sum.push_back(elt.second); 
+                                
+                }
+                                       
+
+        formula.push_back(m_util_a.mk_eq(m_util_a.mk_add(sum),r_var.second));
+        
+            }
+
+            for(auto const& l_var: lhs ){
+                expr_ref_vector sum( m);
+              
+                for(auto const& elt: product_vars){
+                        if( l_var.first == elt.first.first) sum.push_back(elt.second);
+                }
+
+
+
+            formula.push_back(m_util_a.mk_eq(m_util_a.mk_add(sum),l_var.second));
+            
+            }
+
+      // phi_=
+                int kk=0;
+                for(auto const& elt: product_vars){
+                    
+                    if(kk <100){ 
+
+                        kk++;
+                    expr_ref ge(m);
+                    expr_ref tst( m);
+                    ge= m_util_a.mk_ge(elt.second, one);
+                    tst=m_util_a.mk_eq(elt.first.first, elt.first.second);
+
+
+                    app* ll=m.mk_or(m.mk_not(ge), tst);
+
+                   
+                   
+               formula.push_back(ll);
+                }
+
+                }
+
+       
+      parikh_img1(m, p_states,product_vars );
+             //m_trail_stack.push(value_trail<bool>(str_solver_checked));
+             
+         if(flag == 0){
+
+             // block_curr_assignment();
+              expr_ref_vector ass{m};
+              ctx.get_assignments(ass);
+                for(auto elt: formula)add_axiom_arith(elt);
+            
+                flag++;
+            }
+
+            
 
         }
 
@@ -585,40 +614,93 @@ namespace smt {
         
         expr_ref zero(m);
         expr_ref one(m);
+        expr_ref mone(m);
         zero = m_util_a.mk_numeral(rational(0), true);
         SASSERT(zero);
         one = m_util_a.mk_numeral(rational(1), true);
+        mone = m_util_a.mk_numeral(rational(-1), true);
+        std::vector<app*> p_form;
+        std::vector<std::string> st;
+        for(auto elt : states){
+            if(!contains(elt.first, st)) st.push_back(elt.first);
+
+        }
         SASSERT(one);
       
-        for(int k=0; k<states.size(); k++){
-                expr_ref p_pro2(mk_fresh_const("par", int_sort,k,0), m);
-                expr_ref_vector p_pro22(m); 
-            for(int j=0; j<states.size(); j++){  
-  
-               if(k !=j && states[k].first == states[j].first){  
-                    p_pro22.push_back(prod_vars[j].second);  
+        for(int k=0; k<st.size(); k++){
+                ptr_buffer<expr> args;
+                expr_ref_vector ppro_in(m); 
+                expr_ref_vector ppro_out(m); 
+            int j=0;
+            int t=0;
+            while( j<states.size()){ 
+               if(st[k] == states[j].first &&  st[k]!= states[j].second ){
+                    //outgoing
+                    ppro_out.push_back(prod_vars[j].second);  
+                    args.push_back(prod_vars[j].second);t++;
 
-                }else if(k !=j && states[k].first == states[j].second){  
-                     p_pro22.push_back(m_util_a.mk_uminus(prod_vars[j].second));  
+                }else if( st[k] == states[j].second &&st[k] != states[j].first){  //incoming 
+
+                     ppro_in.push_back(m_util_a.mk_uminus(prod_vars[j].second));  
 
                 }
+
+                /*if(st[k] == states[j].first &&  st[k]== states[j].second)
+                {
+                            formula.push_back(m_util_a.mk_eq(prod_vars[j].second, m_util_a.mk_numeral(rational(0),true)));
+                }*/
+                j++;
+
+
+
                 
             }
-                p_pro2= m_util_a.mk_add(p_pro22);  
 
         // initial state and final state
-        if(k== 0  || k == states.size()-1) {
-            p_pro2 = m_util_a.mk_eq(p_pro2, one);
-        }else{
-                 p_pro2=m_util_a.mk_eq(p_pro2, zero);
+        
+        if(k== 0  ) {
+          
+          
+            formula.push_back( m_util_a.mk_eq( m_util_a.mk_add(ppro_out), one));
+           
+           
+        }else if(k == st.size()-1){
+            formula.push_back( m_util_a.mk_eq( m_util_a.mk_add(ppro_in), mone));
+
+        }else 
+        {
+                expr_ref out(m), in(m);
+                out=m_util_a.mk_add(ppro_out);
+                in= m_util_a.mk_add(ppro_in);
+                formula.push_back(m_util_a.mk_eq(m_util_a.mk_add(out, in), zero));
+
+
         }
+        
+        
+     // additional condition :
      
 
-        add_axiom(p_pro2);
+
+
 
     }
 
+           
+                        for(unsigned k=0; k<states.size();k++){
+                            expr_ref_vector vec{m};
+                              app * con     = nullptr;
+                            for(unsigned j=0;j<states.size(); j++){
+                                if(states[k].first == states[j].first && k != j 
+                                && states[k].first != states[k].second
+                                && states[j].first != states[j].second) {
+                                con= con==nullptr? m_util_a.mk_eq(prod_vars[j].second,zero) : m.mk_and(con,m_util_a.mk_eq(prod_vars[j].second,zero) ) ;
+                                }
+                            }
 
+                            if(con != nullptr) formula.push_back(m.mk_or(m.mk_not(m_util_a.mk_eq(prod_vars[k].second,one)), con));
+                        }
+            
 
     }
     void theory_atlas::parikh_img(ast_manager& m, 
@@ -634,51 +716,86 @@ namespace smt {
         unsigned s_bound,
         std::vector<std::pair<std::string, std::string>> states){
 
+                           
+
+
         context& ctx=get_context();
         app * res     = m.mk_true();
         app * p_res     = m.mk_true();
 
         expr_ref print_char_min(m);
         expr_ref print_char_max(m);
+        expr_ref parikh_val_bound(m);
         expr_ref one(m);
+         expr_ref empty_char(m);
         one = m_util_a.mk_numeral(rational(1), true);
+        parikh_val_bound= m_util_a.mk_numeral(rational(2), true);
+        empty_char= m_util_a.mk_numeral(rational(32), true);
         unsigned min=0, max=0, new_s=q_bound/cut_size;
         for(unsigned k=0; k<cut_size;k++) min=PRINT_CHAR_MIN*pow(10, 2*k)+min;
-        for(unsigned k=0; k<cut_size;k++) max=PRINT_CHAR_MIN*pow(10, 3*k)+max;
+        for(unsigned k=0; k<cut_size;k++) max=PRINT_CHAR_MAX*pow(10, 3*k)+max;
         print_char_min = m_util_a.mk_numeral(rational(min), true);
         print_char_max = m_util_a.mk_numeral(rational(max), true);
                
         // PRINTABLE CHAR INTERVAL
-        for(auto& v: vars){        
+                
+
+        for(auto& v: vars){
+        if(!contains_elt(v.first,cst_vars)){   
 
         app* gt_min = m_util_a.mk_ge(v.first,print_char_min);  
 
         app* le_max = m_util_a.mk_le(v.first,print_char_max);  
-        add_axiom_arith(gt_min);
-        add_axiom_arith(le_max);
-       // res = m.mk_and(res,le_max);       
+        app* empty_s= m_util_a.mk_eq(v.first, empty_char);
+     
+     
+        formula.push_back(m.mk_or(gt_min,empty_s ) );
+        formula.push_back(m.mk_or(le_max,empty_s ) );
 
+        }
         }
         
         // vars in the same loop have same parikh image
+          
+       // for(unsigned j=0;  j= (j== 0)? j+new_s: j+1+new_s){ 
+                   
 
-        for(unsigned j=0; j<vars.size(); j= (j== 0)? j+new_s: j+1+new_s){  
+            unsigned j=0;
+              if(new_s>1){
+            while(j<vars.size()){
+                                            
+
             app * ex     = m.mk_true(); 
-            if(stoi(states[j].first)%q_bound == 0 && stoi(states[j].second)%q_bound == 0){
+            
+
+            if(stoi(states[j].first.substr(states[j].first.find("q")+1, states[j].first.size()-1))%q_bound == 0 
+            && stoi(states[j].second.substr(states[j].second.find("q")+1, states[j].second.size()-1))%q_bound == 0
+            ){                            
+
 
             app* eq1= m_util_a.mk_eq(vars[j].second, one);
-            add_axiom_arith(eq1); 
+            formula.push_back(eq1); 
+            j++;
+
+
 
             }
             else{               
+              
+
                 for(unsigned k=1; k<new_s; k++){
                if(j+k < vars.size()){
                 app* eq=m_util_a.mk_eq(vars[j].second,vars[j+k].second);
-                add_axiom_arith(eq);
+                formula.push_back(eq);
 
                } 
+            }             
+                    j=j+new_s;
             }
-            }
+               
+                            
+
+
             //p_res=m.mk_and(p_res, ex);
          /*   if(j+new_s-1 <vars.size()){
                 app* eq1= m_util_a.mk_eq(vars[j+new_s-1].second, one);
@@ -687,8 +804,10 @@ namespace smt {
              res=m.mk_and(ex, eq1);        
 
             }  */
-        }
+            
+        }}
                       
+                            
 
 
         return res;
@@ -798,6 +917,8 @@ namespace smt {
         std::vector<std::pair<std::string, std::string>> *states){
         std::vector<std::pair<expr_ref, expr_ref>> res;
 
+     //  if(find_var_by_label(int_vars, s))
+
         ast_manager &m = get_manager();
         SASSERT(q_bound%cut_size == 0);
         unsigned new_q_bound=q_bound/cut_size ;
@@ -808,41 +929,28 @@ namespace smt {
         unsigned j=0;
            while( j<new_q_bound-1){
 
-            (*states).push_back(std::make_pair(std::to_string(s0+j),std::to_string(s0+j+1)));
+            (*states).push_back(std::make_pair(s+"q"+std::to_string(s0+j),s+"q"+std::to_string(s0+j+1)));
            // s0++;
             j++;
            }
-           (*states).push_back(std::make_pair(std::to_string(j+st),std::to_string(s0)));
+           (*states).push_back(std::make_pair(s+"q"+std::to_string(j+st),s+"q"+std::to_string(s0)));
            st+=new_q_bound;
-         if(k<p_bound-1)  (*states).push_back(std::make_pair(std::to_string(k*new_q_bound),std::to_string(k*new_q_bound+new_q_bound)));
+         if(k<p_bound-1) {
+                      (*states).push_back(std::make_pair(s+"q"+std::to_string(k*new_q_bound),s+"q"+std::to_string(k*new_q_bound+new_q_bound)));
+
+         } 
 
         }
 
 
         for(int k=0; k< num_states; k++){
 
-        std::string ss= s+(*states)[k].first+(*states)[k].second;        
+        std::string ss=s+ (*states)[k].first.substr((*states)[k].first.find("q")+1, (*states)[k].first.size()-1)+(*states)[k].second.substr((*states)[k].first.find("q")+1, (*states)[k].first.size()-1);        
         expr_ref ex (mk_fresh_const(ss, int_sort), m);
         std::string s_p= ss+"p";     
         expr_ref ex_p(mk_fresh_const(s_p, int_sort), m);
-        ctx.internalize(ex, false); 
-        SASSERT(ctx.get_enode(ex) != NULL); 
-        SASSERT(ctx.e_internalized(ex)); 
-        ctx.internalize(ex_p, false); 
-        SASSERT(ctx.get_enode(ex_p) != NULL);
-        SASSERT(ctx.e_internalized(ex_p)); 
-        enode* nex = ctx.get_enode(ex);
-        enode* nex_p = ctx.get_enode(ex_p);
-        ctx.mark_as_relevant(nex);
-        ctx.mark_as_relevant(nex_p);
-
-      //  literal l{ctx.get_literal(ex)}; 
-      //  ctx.mark_as_relevant(l);  
-      // ctx.mk_th_axiom(m_util_a.get_family_id(), 1, &nex); 
-
-        //literal lp{ctx.get_literal(ex_p)};
-       /// ctx.mark_as_relevant(lp);
-      //  ctx.mk_th_axiom(m_util_a.get_family_id(), 1, &lp);
+      
+      
         res.push_back(std::make_pair(ex,ex_p));
          
         int_vars.push_back(ex);
@@ -1113,6 +1221,7 @@ namespace smt {
     }
 
     void theory_atlas::relevant_eh(app *const n) {
+
         STRACE("str", tout << "relevant: " << mk_pp(n, get_manager()) << '\n';);
 
         if (m_util_s.str.is_length(n)) {
@@ -1156,6 +1265,7 @@ namespace smt {
     }
 
     void theory_atlas::assign_eh(bool_var v, const bool is_true) {
+        
         ast_manager &m = get_manager();
         STRACE("strg", tout << "assign: bool_var #" << v << " is " << is_true << ", "
                             << mk_pp(get_context().bool_var2expr(v), m) << "@ scope level:" << m_scope_level << '\n';);
@@ -1190,7 +1300,7 @@ namespace smt {
     }
 
     void theory_atlas::new_eq_eh(theory_var x, theory_var y) {
-
+        
 
     
         m_word_eq_var_todo.push_back({x, y});
@@ -1198,7 +1308,6 @@ namespace smt {
         const expr_ref l{get_enode(x)->get_owner(), m};
         const expr_ref r{get_enode(y)->get_owner(), m};
 
-        std::cout  << l<<"---"<< r<< "\n";
         if (axiomatized_eq_vars.count(std::make_pair(x, y)) == 0) {
             axiomatized_eq_vars.insert(std::make_pair(x, y));
             literal l_eq_r = mk_eq(l, r, false);
@@ -1211,7 +1320,11 @@ namespace smt {
                     
 
         }
-        m_word_eq_todo.push_back({l, r});
+        /*add len constraint
+
+        */
+                
+        if(!contains_elt({l, r}, m_word_eq_todo)) m_word_eq_todo.push_back({l, r});
         m_word_eq_todo2.push_back({l, r});
         STRACE("str", tout << "new_eq: " << l << " = " << r << '\n';);
     }
@@ -1227,6 +1340,7 @@ namespace smt {
     }
 
     void theory_atlas::new_diseq_eh(theory_var x, theory_var y) {
+        
         m_word_diseq_var_todo.push_back({x, y});
         
         ast_manager &m = get_manager();
@@ -1267,6 +1381,7 @@ namespace smt {
 
 
     void theory_atlas::push_scope_eh() {
+        
         m_scope_level += 1;
         m_word_eq_todo.push_scope();
         m_word_diseq_todo.push_scope();
@@ -1281,8 +1396,7 @@ namespace smt {
 
     void theory_atlas::pop_scope_eh(const unsigned num_scopes) {
 
-
-        
+           
         m_scope_level -= num_scopes;
         m_word_eq_todo.pop_scope(num_scopes);
         m_word_diseq_todo.pop_scope(num_scopes);
@@ -1297,6 +1411,7 @@ namespace smt {
     }
 
     void theory_atlas::reset_eh() {
+        
         STRACE("str", tout << "reset" << '\n';);
     }
 
@@ -1359,7 +1474,9 @@ namespace smt {
                 std::stringstream ss;
                 ss << "V("<<mk_pp(e, get_manager())<<")";
                 s = zstring(ss.str().data());
+                //if(!contains_elt(e, vars)) vars.push_back(e);
                 lst1.push_back(e);
+
                 return lst1;
 
 
@@ -1430,40 +1547,58 @@ namespace smt {
 
     final_check_status theory_atlas::final_check_eh() {
 
+            
+        if(!str_solver_checked){
+        if (m_word_eq_todo.empty() ) {
+            
 
-        std::cout << "final_check starts\n" << is_over_approximation<<std::endl;
+            str_solver_checked = true;
+            ctx.push_trail(value_trail<bool>(str_solver_checked));
 
-        if (m_word_eq_todo.empty() ) {//&& m_word_diseq_todo.empty()) {
+            
             arith_value v(get_manager());
             v.init(&ctx);
-        
             final_check_status arith_fc_status = v.final_check();
-            if (arith_fc_status != FC_DONE) {
 
-                 
-                TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
-                return FC_CONTINUE;
+            
+            if (arith_fc_status == FC_DONE  ) {
+                std::cout<<"Arithmetic solver Done \n";
+                if(ctx.inconsistent()){
+                    std::cout<<" && Context is inconsistent \n";
+                            return FC_CONTINUE;
+                }
+                else{
+                    std::cout<<"&&  context is consistent()\n";
+                    return FC_DONE;
+                }
+
             }else{
+                        TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
 
-                return FC_DONE;
+                //done doesnt mean sat: it means sat/or unsat
+               // case : sat : done 
+               //case:unsat : block_curr_assigneemnt
+                
+                return FC_CONTINUE;
             }
+
+        
         }
         
         else{
-            //FC_CONTINUE;
+
 
              if(m_int_eq_todo.empty())// check for new integer constaint; ==> if the overapprox is over or not== > underapprox
             {
-                std::cout <<" m_int_eq_todo is empty"<< __LINE__ << "\n";
+
+
                 is_over_approximation=false;
                  //Handle word eq, underAproxx
                  for (const auto& we : m_word_eq_todo) {
-
                         handle_word_eq(we.first, we.second);
-                        m_word_eq_todo.pop_back();
+                       m_word_eq_todo.pop_back();
 
                     }  
-
               /*  expr_ref one(m_util_a.mk_int(34), m);
                 expr_ref ex (mk_fresh_const("test", int_sort), m);
                 ctx.internalize(ex, false); 
@@ -1486,9 +1621,9 @@ namespace smt {
                 app* eq1= m_util_a.mk_eq(ex, ex2);
                 app* eq2= m_util_a.mk_eq(m_util_a.mk_add(ex, ex2), ex1);
                 app* eq3= m_util_a.mk_eq(ex1, one);
-                add_axiom_arith(eq1);
-                add_axiom_arith(eq2);
-                 add_axiom_arith(eq3);
+                formula.push_back(eq1);
+                formula.push_back(eq2);
+                 formula.push_back(eq3);
                 int_vars.push_back(ex);
                                 int_vars.push_back(ex1);
                 int_vars.push_back(ex2);
@@ -1519,7 +1654,7 @@ namespace smt {
            
             
         }
-
+    }
        // block_curr_assignment();
 
         TRACE("str", tout << "final_check ends\n";);
@@ -1529,29 +1664,32 @@ namespace smt {
 
     model_value_proc *theory_atlas::mk_value(enode *const n, model_generator &mg) {
 
-
-
+        
         family_id afid = m_util_a.get_family_id(); 
         app* tgta=nullptr;
         expr_ref_vector assignments{m};
+        expr_ref_vector reslt{m};
+         ctx.get_assignments(assignments);
+         reslt= ctx.get_trail(); //();
+       
         ctx.get_num_asserted_formulas();
-        
+                 
             for(obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> ::iterator it = fresh_int_vars.begin(); it != fresh_int_vars.end(); ++it){
+                 
                if(m.are_equal(n->get_owner(),&((*it).get_key()))){
-                   
                    
                      tgta= construct_string_from_int_array((*it).get_value(), mg);
                 
-              
+                 
 
                    }// expr e=;
 
             }
-
-        ctx.get_assignments(assignments);
+   
+       
 
         theory_lra* thr = get_th_arith<theory_lra>(ctx, afid, n->get_owner());
-
+   
         
         app *const tgt = n->get_owner();
         
@@ -1561,26 +1699,8 @@ namespace smt {
 
      rational val;
   
+   
 
-
-        /*for(unsigned k=0; k<int_vars.size(); k++){
-
-          if( int_vars[k]->get_sort() == int_sort){
-           SASSERT(ctx.get_enode(int_vars[k])!= NULL );
-            rational val;
-               
-            if(get_arith_value(int_vars[k],val))  std::cout<< int_vars[k] << "_______result  val::::::::::::" << val<<"\n";
-            else{
-                app* value = nullptr;
-
-                 value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_vars[k]),mg)->mk_value(mg, assignments);
-                 if(m_util_a.is_numeral(value, val) && val.is_int())
-                 std::cout <<mk_pp(int_vars[k],m)<<"_________VAAAAAAAAAAAAAAAAAAAL::"<< val<< "\n";
-            }
-
-            }
-                    
-            }*/
         if(tgta !=nullptr ) return alloc(expr_wrapper_proc, tgta);
         else  return alloc(expr_wrapper_proc, tgt);
     }
@@ -1629,15 +1749,68 @@ namespace smt {
         }
     return false;
     }
-    /*  bool theory_atlas::contains_elt(app* elt, obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> vec) {
-        ast_manager& m = get_manager();
+     bool theory_atlas::contains(std::string elt, std::vector<std::string> vec) {
 
-        vec.
-        for (auto app_elt :  vec){
-            if(m.are_equal(app_elt.get_key(), to_app(elt)) ) return true;
+        for (std::string v_elt :  vec){
+            if(v_elt == elt ) return true;
         }
     return false;
-    }*/
+    }
+    bool theory_atlas::contains_elt(app* elt, std::vector<app*> vec){
+        ast_manager& m = get_manager();
+
+        for (app* app_elt :  vec){
+            if(m.are_equal(app_elt, elt) ) return true;
+        }
+    return false;
+    }
+      bool theory_atlas::contains_elt(expr_ref elt, std::vector<expr_ref> vec){
+        ast_manager& m = get_manager();
+
+        for (auto app_elt :  vec){
+            if(m.are_equal(app_elt, elt) ) return true;
+        }
+    return false;
+    }
+
+    bool theory_atlas::contains_elt(expr_pair elt, scoped_vector<expr_pair> vec){
+        ast_manager& m = get_manager();
+
+        for (auto p_elt :  vec){
+            if(m.are_equal(elt.first, p_elt.first) &&m.are_equal(elt.second, p_elt.second) ) return true;
+        }
+    return false;
+    }
+     bool theory_atlas::contains_elt(expr_ref elt, scoped_vector<expr_ref> vec) {
+        ast_manager& m = get_manager();
+
+        for (expr_ref app_elt :  vec){
+            if(m.are_equal(app_elt, elt) ) return true;
+        }
+    return false;
+    }
+       bool theory_atlas::contains_elt(expr* elt, scoped_vector<expr*> vec) {
+        ast_manager& m = get_manager();
+
+        for (expr* expr_elt :  vec){
+            if(m.are_equal(expr_elt, elt) ) return true;
+        }
+    return false;
+    }
+    bool theory_atlas::contains_elt(expr* elt,
+     obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> vec,
+     std::vector<std::pair<expr_ref, expr_ref>> *vars) {
+        ast_manager& m = get_manager();
+
+        for (auto expr_elt :  vec){
+            if( m.are_equal( &(expr_elt.get_key()), elt))
+            {
+                (*vars).insert((*vars).end(), expr_elt.get_value().begin(), expr_elt.get_value().begin());
+            return true;
+            }
+        }
+    return false;
+    }
 
 
     expr_ref theory_atlas::mk_skolem(symbol const &name, expr *e1, expr *e2, expr *e3, expr *e4, sort *sort) {
@@ -1721,7 +1894,7 @@ namespace smt {
 
 
             ctx.internalize(e, false);
-           std::cout<< "ADDING AXIOM " << mk_pp(e, m)<<std::endl;
+
 
            
             literal l{ctx.get_literal(e)};
@@ -1745,7 +1918,6 @@ namespace smt {
 
             axiomatized_terms.insert(e);
             if (e == nullptr || get_manager().is_true(e)) return;
-//        string_theory_propagation(e);
             context &ctx = get_context();
 
 //        SASSERT(!ctx.b_internalized(e));
@@ -1756,7 +1928,6 @@ namespace smt {
 
 
             ctx.internalize(e, false);
-           // std::cout<< "ADDING AXIOM " << mk_pp(e, m)<<std::endl;
 
            
             literal l{ctx.get_literal(e)};
@@ -2239,7 +2410,7 @@ namespace smt {
         ast_manager& m = get_manager();
         expr *refinement = nullptr;
         STRACE("str", tout << "[Refinement]\nformulas:\n";);
-       /* for (const auto& we : m_word_eq_todo) {
+             for (const auto& we : m_word_eq_todo) {
             expr *const e = m.mk_not(m.mk_eq(we.first, we.second));
             refinement = refinement == nullptr ? e : m.mk_or(refinement, e);
             STRACE("str", tout << we.first << " = " << we.second << '\n';);
@@ -2250,19 +2421,21 @@ namespace smt {
             expr *const e = m.mk_eq(wi.first, wi.second);
             refinement = refinement == nullptr ? e : m.mk_or(refinement, e);
             STRACE("str", tout << wi.first << " != " << wi.second << '\n';);
-        }*/
+        }
         if (refinement != nullptr) {
-            std::cout <<" !!!!!!" << "\n";
             add_axiom(refinement);
         }
         STRACE("str", tout << __LINE__ << " leave " << __FUNCTION__ << std::endl;);
 
     }
-
+   
     void theory_atlas::dump_assignments() const {
+        ast_manager& m = get_manager();
+        context& ctx = get_context();
+        expr_ref_vector assignments{m};
+        ctx.get_assignments(assignments);
         STRACE("str", \
-                ast_manager& m = get_manager();
-                context& ctx = get_context();
+                
                 std::cout << "dump all assignments:\n";
                 expr_ref_vector assignments{m};
 
@@ -2273,6 +2446,19 @@ namespace smt {
                     std::cout <<"**"<< mk_pp(e, m) << (ctx.is_relevant(e) ? "\n" : " (not relevant)\n");
                 }
         );
+                
+                for (expr *const e : assignments) {
+                    if( e->get_sort()==int_sort){
+                        expr_ref not_e(m.mk_not(e),m);
+                        ctx.mark_as_relevant(m.mk_not(e));
+                    }
+                    else{
+
+                        expr_ref not_e(m.mk_not(e),m);
+
+                        ctx.mark_as_relevant(m.mk_not(e));
+                    }
+                }
     }
 
 
@@ -2472,52 +2658,65 @@ namespace smt {
                 unsigned k=0,j=k;
                 expr_ref_vector assignments{m};
                 ctx.get_assignments(assignments);
-            for(auto elt: int_varr){
-                                          
-            }
+           
+           
 
             while(k<int_varr.size()){
+                
                 std::string res="";
-                while(j<new_q_bound){
+                while(j<new_q_bound){                 
+
                      rational val;
                
-                     if(get_arith_value(int_varr[j+k].first,val))  std::cout<<"\n";
-                     else{
-                          app* value = nullptr;
+                     if(get_arith_value(int_varr[j+k].first,val))  std::cout<<" \n";
+                     else{                 
+
+                          app* value = nullptr;             
+
 
                             value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_varr[j+k].first),mg)->mk_value(mg, assignments);
-                            m_util_a.is_numeral(value, val);// && val.is_int())
+                            m_util_a.is_numeral(value, val);// && val.is_int())                 
+
                        }
                     
                      char s= char(val.get_int64());  
-                     res= res+s;
-                    //res=res+std::to_string(val);
-                    j++;
+
+                    if(s !=' ') res= res+s;
+                    j++;                 
+                                         
+
                 }
-                rational val2 ; 
-                if(get_arith_value(int_varr[k].second,val2))  std::cout<<"\n";
+                rational val2 ;                  
+
+                if(get_arith_value(int_varr[k].second,val2))    std::cout<<"\n";              
+
                      
                      else{
-                          app* value = nullptr;
+                          app* value = nullptr;                 
 
-                            value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_varr[k].first),mg)->mk_value(mg, assignments);
+
+                            value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_varr[k].second),mg)->mk_value(mg, assignments);
                             m_util_a.is_numeral(value, val2) ;//&& val2.is_int())
                        }
                 
-            for(unsigned i=0; i<val2; i++) ss << res;
+            for(unsigned i=0; i<val2; i++) ss << res;                 
+
 
            if(k<p_bound-1){ 
-               rational val3 ; 
+               rational val3 ;                  
+
                
-                if(get_arith_value(int_varr[j].first,val3))  std::cout<<"\n";
+                if(get_arith_value(int_varr[j].first,val3))    std::cout<<"\n";
+
                      else{
                           app* value = nullptr;
 
                             value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_varr[j].first),mg)->mk_value(mg, assignments);
                             m_util_a.is_numeral(value, val3) ;//&& val3.is_int())
                        }
-            char s= char(val3.get_int64());     
-            ss <<s;
+            char s= char(val3.get_int64());                      
+            if(s !=' ') ss <<s;
+
             }
             k=k+j+1;
             j=0;
@@ -2531,4 +2730,75 @@ namespace smt {
        
 
     }
+    void theory_atlas::print_assignement(){
+
+
+            
+
+    }
+    std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar(zstring s,
+    std::vector<std::pair<std::string, std::string>> *states){
+         std::vector<std::pair<expr_ref, expr_ref>> res;
+         unsigned new_q_bound= q_bound/cut_size, new_p=s.length() == 1 ? 1 : s.length()/new_q_bound;
+         expr_ref one(m);
+         one = m_util_a.mk_numeral(rational(1), true);
+         std::string st;
+            std::stringstream ss;
+            ss <<s;
+            st = ss.str().data();
+         
+         unsigned  stt=0;
+            for(unsigned k=0; k<=new_p; k++){
+                    unsigned s0=k*new_q_bound;
+                    unsigned j=0;
+                while( j<new_q_bound-1){
+
+                        (*states).push_back(std::make_pair(st+"q"+std::to_string(s0+j),st+"q"+std::to_string(s0+j+1)));
+                    // s0++;
+                        j++;
+                }
+                    (*states).push_back(std::make_pair(st+"q"+std::to_string(j+stt),st+"q"+std::to_string(s0)));
+                    stt+=new_q_bound;
+                    if(k<new_p) 
+                    (*states).push_back(std::make_pair(st+"q"+std::to_string(k*new_q_bound),st+"q"+std::to_string(k*new_q_bound+new_q_bound)));
+
+                     
+        }
+        
+        
+         unsigned len=s.length();
+
+        for( unsigned k=0; k< (*states).size(); k++){
+        std::string name=st.at(0)+ (*states)[k].first.substr((*states)[k].first.find("q")+1, (*states)[k].first.size()-1)+(*states)[k].second.substr((*states)[k].first.find("q")+1, (*states)[k].first.size()-1);        
+        expr_ref ex (mk_fresh_const(name, int_sort), m);
+        std::string s_p= name+"p";     
+        expr_ref ex_p(mk_fresh_const(s_p, int_sort), m);
+        res.push_back(std::make_pair(ex,ex_p));
+        int_vars.push_back(ex);
+        int_vars.push_back(ex_p);
+        cst_vars.push_back(ex);
+        
+        
+
+      //  formula.push_back(m_util_a.mk_eq(ex_p, one));
+        if(k<len){
+              if(k!=0 && (k+1)% (new_q_bound+1)==0){
+                     formula.push_back(m_util_a.mk_eq(ex, m_util_a.mk_numeral(rational(int(32)), true)));
+                    len++;
+
+             }else{
+
+                        formula.push_back(m_util_a.mk_eq(ex, m_util_a.mk_numeral(rational(int(st[k+s.length()-len])), true)));
+             }
+        }else{
+
+            formula.push_back(m_util_a.mk_eq(ex, m_util_a.mk_numeral(rational(int(32)), true)));
+
+        }
+
+        formula.push_back(m_util_a.mk_eq(ex_p, m_util_a.mk_numeral(rational(1), true)));
+        }
+        
+return res;
+     }
 }
