@@ -28,6 +28,8 @@ public:
     ufbv_rewriter_tactic(ast_manager & m, params_ref const & p):
         m_manager(m), m_params(p) {}
 
+    char const* name() const override { return "ufbv"; }
+
     tactic * translate(ast_manager & m) override {
         return alloc(ufbv_rewriter_tactic, m, m_params);
     }
@@ -59,7 +61,7 @@ public:
             proofs.push_back(g->pr(i));
         }
 
-        dem(forms.size(), forms.c_ptr(), proofs.c_ptr(), new_forms, new_proofs);
+        dem(forms.size(), forms.data(), proofs.data(), new_forms, new_proofs);
 
         g->reset();
         for (unsigned i = 0; i < new_forms.size(); i++)

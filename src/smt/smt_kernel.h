@@ -128,9 +128,9 @@ namespace smt {
         */
         lbool check(unsigned num_assumptions = 0, expr * const * assumptions = nullptr);
 
-        lbool check(expr_ref_vector const& asms) { return check(asms.size(), asms.c_ptr()); }
+        lbool check(expr_ref_vector const& asms) { return check(asms.size(), asms.data()); }
 
-        lbool check(app_ref_vector const& asms) { return check(asms.size(), (expr* const*)asms.c_ptr()); }
+        lbool check(app_ref_vector const& asms) { return check(asms.size(), (expr* const*)asms.data()); }
 
         lbool check(expr_ref_vector const& cube, vector<expr_ref_vector> const& clauses);
 
@@ -150,10 +150,14 @@ namespace smt {
         */
         lbool preferred_sat(expr_ref_vector const& asms, vector<expr_ref_vector>& cores);
 
-        void set_phase(expr * e) { NOT_IMPLEMENTED_YET(); }
-        solver::phase* get_phase() { NOT_IMPLEMENTED_YET();  return nullptr; }
-        void set_phase(solver::phase* p) { NOT_IMPLEMENTED_YET(); }
-        void move_to_front(expr* e) { NOT_IMPLEMENTED_YET(); }
+        /**
+           \brief control phase selection and variable ordering.
+           Base implementation is a no-op.
+        */
+        void set_phase(expr * e) { }
+        solver::phase* get_phase() { return nullptr; }
+        void set_phase(solver::phase* p) { }
+        void move_to_front(expr* e) { }
 
         /**
            \brief Return the model associated with the last check command.
@@ -285,24 +289,23 @@ namespace smt {
         */
         void user_propagate_init(
             void* ctx, 
-            solver::push_eh_t&      push_eh,
-            solver::pop_eh_t&       pop_eh,
-            solver::fresh_eh_t&     fresh_eh);
+            user_propagator::push_eh_t&      push_eh,
+            user_propagator::pop_eh_t&       pop_eh,
+            user_propagator::fresh_eh_t&     fresh_eh);
 
-        void user_propagate_register_fixed(solver::fixed_eh_t& fixed_eh);
+        void user_propagate_register_fixed(user_propagator::fixed_eh_t& fixed_eh);
 
-        void user_propagate_register_final(solver::final_eh_t& final_eh);
+        void user_propagate_register_final(user_propagator::final_eh_t& final_eh);
         
-        void user_propagate_register_eq(solver::eq_eh_t& eq_eh);
+        void user_propagate_register_eq(user_propagator::eq_eh_t& eq_eh);
         
-        void user_propagate_register_diseq(solver::eq_eh_t& diseq_eh);
+        void user_propagate_register_diseq(user_propagator::eq_eh_t& diseq_eh);
 
-
-        /**
-           \brief register an expression to be tracked fro user propagation.
-        */
         unsigned user_propagate_register(expr* e);
         
+        void user_propagate_register_created(user_propagator::created_eh_t& r);
+
+        func_decl* user_propagate_declare(symbol const& name, unsigned n, sort* const* domain, sort* range);
 
         /**
            \brief Return a reference to smt::context.

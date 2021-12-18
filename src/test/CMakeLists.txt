@@ -101,6 +101,7 @@ add_executable(test-z3
   sat_local_search.cpp
   sat_lookahead.cpp
   sat_user_scope.cpp
+  scoped_timer.cpp
   simple_parser.cpp
   simplex.cpp
   simplifier.cpp
@@ -129,6 +130,7 @@ add_executable(test-z3
   vector.cpp
   lp/lp.cpp
   lp/nla_solver_test.cpp
+  zstring.cpp
   ${z3_test_extra_object_files}
 )
 z3_add_install_tactic_rule(${z3_test_deps})

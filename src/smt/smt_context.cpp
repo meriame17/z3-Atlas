@@ -34,6 +34,7 @@ Revision History:
 #include "smt/smt_context.h"
 #include "smt/smt_quick_checker.h"
 #include "smt/uses_theory.h"
+#include "smt/theory_special_relations.h"
 #include "smt/smt_for_each_relevant_expr.h"
 #include "smt/smt_model_generator.h"
 #include "smt/smt_model_checker.h"
@@ -137,6 +138,8 @@ namespace smt {
         for (unsigned i = 0; i < src_af.get_num_formulas(); ++i) {
             expr_ref fml(dst_m);
             proof_ref pr(dst_m);
+            if (src_m.is_true(src_af.get_formula(i)))
+               continue;
             proof* pr_src = src_af.get_formula_proof(i);
             fml = tr(src_af.get_formula(i));
             if (pr_src) {
@@ -159,6 +162,8 @@ namespace smt {
             }
             expr_ref fml0(src_m), fml1(dst_m);
             src_ctx.literal2expr(lit, fml0);
+            if (src_m.is_true(fml0))
+                continue;
             fml1 = tr(fml0.get());
             dst_ctx.assert_expr(fml1);
         }
@@ -193,7 +198,7 @@ namespace smt {
             return;
         ast_translation tr(src_ctx.m, m, false);
         auto* p = get_theory(m.mk_family_id("user_propagator"));
-        m_user_propagator = reinterpret_cast<user_propagator*>(p);
+        m_user_propagator = reinterpret_cast<theory_user_propagator*>(p);
         SASSERT(m_user_propagator);
         for (unsigned i = 0; i < src_ctx.m_user_propagator->get_num_vars(); ++i) {
             app* e = src_ctx.m_user_propagator->get_expr(i);
@@ -458,18 +463,17 @@ namespace smt {
             TRACE("add_eq", tout << "assigning: #" << n1->get_owner_id() << " = #" << n2->get_owner_id() << "\n";);
             TRACE("add_eq_detail", tout << "assigning\n" << enode_pp(n1, *this) << "\n" << enode_pp(n2, *this) << "\n";
                   tout << "kind: " << js.get_kind() << "\n";);
-            SASSERT(n1->get_owner()->get_sort() == n2->get_owner()->get_sort());
+            SASSERT(n1->get_sort() == n2->get_sort());
 
             m_stats.m_num_add_eq++;
             enode * r1 = n1->get_root();
             enode * r2 = n2->get_root();
 
-
             if (r1 == r2) {
                 TRACE("add_eq", tout << "redundant constraint.\n";);
                 return;
             }
-            IF_VERBOSE(20, verbose_stream() << "merge " << mk_bounded_pp(n1->get_owner(), m) << " " << mk_bounded_pp(n2->get_owner(), m) << "\n");
+            IF_VERBOSE(20, verbose_stream() << "merge " << mk_bounded_pp(n1->get_expr(), m) << " " << mk_bounded_pp(n2->get_expr(), m) << "\n");
 
             if (r1->is_interpreted() && r2->is_interpreted()) {
                 TRACE("add_eq", tout << "interpreted roots conflict.\n";);
@@ -627,7 +631,7 @@ namespace smt {
                     lbool val  = get_assignment(v);
                     if (val != l_true) {
                         if (val == l_false && js.get_kind() == eq_justification::CONGRUENCE)
-                            m_dyn_ack_manager.cg_conflict_eh(n1->get_owner(), n2->get_owner());
+                            m_dyn_ack_manager.cg_conflict_eh(n1->get_expr(), n2->get_expr());
 
                         assign(literal(v), mk_justification(eq_propagation_justification(lhs, rhs)));
                     }
@@ -755,7 +759,8 @@ namespace smt {
         enode * r2 = n2->get_root();
         enode * r1 = n1->get_root();
         if (!r1->has_th_vars() && !r2->has_th_vars()) {
-            TRACE("merge_theory_vars", tout << "Neither have theory vars #" << n1->get_owner()->get_id() << " #" << n2->get_owner()->get_id() << "\n";);
+            TRACE("merge_theory_vars", tout << "Neither have theory vars #" 
+                  << mk_bounded_pp(n1->get_expr(), m) << " #" << mk_bounded_pp(n2->get_expr(), m) << "\n";);
             return;
         }
 
@@ -891,7 +896,7 @@ namespace smt {
             lbool val2  = get_assignment(v2);
             if (val2 != val) {
                 if (val2 != l_undef && congruent(source, target) && source->get_num_args() > 0)
-                    m_dyn_ack_manager.cg_conflict_eh(source->get_owner(), target->get_owner());
+                    m_dyn_ack_manager.cg_conflict_eh(source->get_expr(), target->get_expr());
                 assign(literal(v2, sign), mk_justification(mp_iff_justification(source, target)));
             }
             target = target->get_next();
@@ -1041,10 +1046,10 @@ namespace smt {
         enode * r1 = n1->get_root();
         enode * r2 = n2->get_root();
         TRACE("add_diseq", tout << "assigning: #" << n1->get_owner_id() << " != #" << n2->get_owner_id() << "\n";
-              tout << mk_ll_pp(n1->get_owner(), m) << " != ";
-              tout << mk_ll_pp(n2->get_owner(), m) << "\n";
-              tout << mk_ll_pp(r1->get_owner(), m) << " != ";
-              tout << mk_ll_pp(r2->get_owner(), m) << "\n";
+              tout << mk_ll_pp(n1->get_expr(), m) << " != ";
+              tout << mk_ll_pp(n2->get_expr(), m) << "\n";
+              tout << mk_ll_pp(r1->get_expr(), m) << " != ";
+              tout << mk_ll_pp(r2->get_expr(), m) << "\n";
               );
 
         DEBUG_CODE(
@@ -1099,16 +1104,16 @@ namespace smt {
        context.
     */
     bool context::is_diseq(enode * n1, enode * n2) const {
-        SASSERT(n1->get_owner()->get_sort() == n2->get_owner()->get_sort());
+        SASSERT(n1->get_sort() == n2->get_sort());
         context * _this = const_cast<context*>(this);
         if (!m_is_diseq_tmp) {
-            app * eq       = m.mk_eq(n1->get_owner(), n2->get_owner());
+            app * eq       = m.mk_eq(n1->get_expr(), n2->get_expr());
             m.inc_ref(eq);
             _this->m_is_diseq_tmp = enode::mk_dummy(m, m_app2enode, eq);
         }
-        else if (m_is_diseq_tmp->get_owner()->get_arg(0)->get_sort() != n1->get_owner()->get_sort()) {
-            m.dec_ref(m_is_diseq_tmp->get_owner());
-            app * eq = m.mk_eq(n1->get_owner(), n2->get_owner());
+        else if (m_is_diseq_tmp->get_expr()->get_arg(0)->get_sort() != n1->get_sort()) {
+            m.dec_ref(m_is_diseq_tmp->get_expr());
+            app * eq = m.mk_eq(n1->get_expr(), n2->get_expr());
             m.inc_ref(eq);
             m_is_diseq_tmp->m_func_decl_id = UINT_MAX;
             m_is_diseq_tmp->m_owner = eq;
@@ -1136,7 +1141,7 @@ namespace smt {
         if (n1->get_num_parents() > n2->get_num_parents())
             std::swap(n1, n2);
         for (enode * parent : enode::parents(n1)) {
-            if (parent->is_eq() && is_relevant(parent->get_owner()) && get_assignment(enode2bool_var(parent)) == l_false &&
+            if (parent->is_eq() && is_relevant(parent->get_expr()) && get_assignment(enode2bool_var(parent)) == l_false &&
                 ((parent->get_arg(0)->get_root() == n1->get_root() && parent->get_arg(1)->get_root() == n2->get_root()) ||
                  (parent->get_arg(1)->get_root() == n1->get_root() && parent->get_arg(0)->get_root() == n2->get_root()))) {
                 TRACE("is_diseq_bug", tout << "parent: #" << parent->get_owner_id() << ", parent->root: #" <<
@@ -1253,14 +1258,14 @@ namespace smt {
         enode * r   = m_cg_table.find(tmp);
 #ifdef Z3DEBUG
         if (r != nullptr) {
-            SASSERT(r->get_owner()->get_decl() == f);
+            SASSERT(r->get_expr()->get_decl() == f);
             SASSERT(r->get_num_args() == num_args);
             if (r->is_commutative()) {
                 // TODO
             }
             else {
                 for (unsigned i = 0; i < num_args; i++) {
-                    expr * arg   = r->get_owner()->get_arg(i);
+                    expr * arg   = r->get_expr()->get_arg(i);
                     SASSERT(e_internalized(arg));
                     enode * _arg = get_enode(arg);
                     CTRACE("eq_to_bug", args[i]->get_root() != _arg->get_root(),
@@ -1395,7 +1400,7 @@ namespace smt {
         SASSERT(get_bdata(v).is_enode());
         lbool val  = get_assignment(v);
         TRACE("propagate_bool_var_enode_bug", tout << "var: " << v << " #" << bool_var2expr(v)->get_id() << "\n";);
-        SASSERT(v < static_cast<int>(m_b_internalized_stack.size()));
+        SASSERT(v < m_b_internalized_stack.size());
         enode * n  = bool_var2enode(v);
 
         CTRACE("mk_bool_var", !n, tout << "No enode for " << v << "\n";);
@@ -1434,7 +1439,7 @@ namespace smt {
             return;
         }
         theory_id th_id = th->get_id();
-        TRACE("push_new_th_diseqs", tout << "#" << r->get_owner_id() << " " << mk_bounded_pp(r->get_owner(), m) << " v" << v << " th: " << th_id << "\n";);
+        TRACE("push_new_th_diseqs", tout << "#" << r->get_owner_id() << " " << mk_bounded_pp(r->get_expr(), m) << " v" << v << " th: " << th_id << "\n";);
         for (enode * parent : r->get_parents()) {
             CTRACE("parent_bug", parent == 0, tout << "#" << r->get_owner_id() << ", num_parents: " << r->get_num_parents() << "\n"; display(tout););
             if (parent->is_eq()) {
@@ -1518,7 +1523,7 @@ namespace smt {
        If the enode is not boolean, then return l_undef.
     */
     lbool context::get_assignment(enode * n) const {
-        expr * owner = n->get_owner();
+        expr * owner = n->get_expr();
         if (!m.is_bool(owner))
             return l_undef;
         if (n == m_false_enode)
@@ -1538,6 +1543,14 @@ namespace smt {
             assignments.push_back(std::move(e));
         }
     }
+
+    void context::get_specrels(func_decl_set& rels) const {
+        family_id fid = m.get_family_id("specrels");
+        theory* th = get_theory(fid);
+        if (th)
+            dynamic_cast<theory_special_relations*>(th)->get_specrels(rels);
+    }
+
 
     void context::relevant_eh(expr * n) {
         if (b_internalized(n)) {
@@ -1665,16 +1678,6 @@ namespace smt {
             !m_eq_propagation_queue.empty() ||
             !m_th_eq_propagation_queue.empty() ||
             !m_th_diseq_propagation_queue.empty();
-    }
-
-    /**
-       \brief retrieve facilities for creating induction lemmas.
-     */
-    induction& context::get_induction() {
-        if (!m_induction) {
-            m_induction = alloc(induction, *this, get_manager());
-        }
-        return *m_induction;
     }
 
     /**
@@ -1941,7 +1944,7 @@ namespace smt {
        \brief Execute generic undo-objects.
     */
     void context::undo_trail_stack(unsigned old_size) {
-        ::undo_trail_stack(*this, m_trail_stack, old_size);
+        ::undo_trail_stack(m_trail_stack, old_size);
     }
 
     /**
@@ -1986,7 +1989,7 @@ namespace smt {
     void context::remove_lit_occs(clause const& cls, unsigned nbv) {
         if (!track_occs()) return;
         for (literal l : cls) {
-            if (l.var() < static_cast<int>(nbv)) 
+            if (l.var() < nbv) 
                 dec_ref(l);
         }
     }
@@ -2264,7 +2267,7 @@ namespace smt {
                     SASSERT(cls->get_num_atoms() == cls->get_num_literals());
                     for (unsigned j = 0; j < 2; j++) {
                         literal l           = cls->get_literal(j);
-                        if (l.var() < static_cast<int>(num_bool_vars)) {
+                        if (l.var() < num_bool_vars) {
                             // This boolean variable was not deleted during backtracking
                             //
                             // So, it is still a watch literal. I remove the watch, since
@@ -2547,9 +2550,9 @@ namespace smt {
                 new_js = mk_justification(unit_resolution_justification(m_region,
                                                                         js,
                                                                         simp_lits.size(),
-                                                                        simp_lits.c_ptr()));
+                                                                        simp_lits.data()));
             else
-                new_js = alloc(unit_resolution_justification, js, simp_lits.size(), simp_lits.c_ptr());
+                new_js = alloc(unit_resolution_justification, js, simp_lits.size(), simp_lits.data());
             cls.set_justification(new_js);
         }
         return false;
@@ -2605,10 +2608,10 @@ namespace smt {
                                 js = mk_justification(unit_resolution_justification(m_region,
                                                                                     cls_js,
                                                                                     simp_lits.size(),
-                                                                                    simp_lits.c_ptr()));
+                                                                                    simp_lits.data()));
                             }
                             else {
-                                js = alloc(unit_resolution_justification, cls_js, simp_lits.size(), simp_lits.c_ptr());
+                                js = alloc(unit_resolution_justification, cls_js, simp_lits.size(), simp_lits.data());
                                 // js took ownership of the justification object.
                                 cls->set_justification(nullptr);
                                 m_justifications.push_back(js);
@@ -2883,11 +2886,11 @@ namespace smt {
 
     void context::user_propagate_init(
         void*                    ctx, 
-        solver::push_eh_t&       push_eh,
-        solver::pop_eh_t&        pop_eh,
-        solver::fresh_eh_t&      fresh_eh) {
-        setup_context(m_fparams.m_auto_config);
-        m_user_propagator = alloc(user_propagator, *this);
+        user_propagator::push_eh_t&       push_eh,
+        user_propagator::pop_eh_t&        pop_eh,
+        user_propagator::fresh_eh_t&      fresh_eh) {
+        setup_context(false);
+        m_user_propagator = alloc(theory_user_propagator, *this);
         m_user_propagator->add(ctx, push_eh, pop_eh, fresh_eh);
         for (unsigned i = m_scopes.size(); i-- > 0; ) 
             m_user_propagator->push_scope_eh();
@@ -2953,7 +2956,7 @@ namespace smt {
         m_qmanager = nullptr;
         if (m_is_diseq_tmp) {
             m_is_diseq_tmp->del_eh(m, false);
-            m.dec_ref(m_is_diseq_tmp->get_owner());
+            m.dec_ref(m_is_diseq_tmp->get_expr());
             enode::del_dummy(m_is_diseq_tmp);
             m_is_diseq_tmp = nullptr;
         }
@@ -3081,7 +3084,7 @@ namespace smt {
                     literal l2 = *set_it;
                     if (l2 != l) {
                         b_justification js(l);
-                        TRACE("theory_case_split", tout << "case split literal "; l2.display(tout, m, m_bool_var2expr.c_ptr()); tout << std::endl;);
+                        TRACE("theory_case_split", tout << "case split literal "; smt::display(tout, l2, m, m_bool_var2expr.data()); tout << std::endl;);
                         if (l2 == true_literal || l2 == false_literal || l2 == null_literal) continue;
                         assign(~l2, js);
                         if (inconsistent()) {
@@ -3206,10 +3209,10 @@ namespace smt {
         if (lits.size() >= 2) {
             justification* js = nullptr;
             if (m.proofs_enabled()) {
-                proof * pr = mk_clause_def_axiom(lits.size(), lits.c_ptr(), nullptr);
+                proof * pr = mk_clause_def_axiom(lits.size(), lits.data(), nullptr);
                 js = mk_justification(justification_proof_wrapper(*this, pr));
             }
-            clausep = clause::mk(m, lits.size(), lits.c_ptr(), CLS_AUX, js);
+            clausep = clause::mk(m, lits.size(), lits.data(), CLS_AUX, js);
         }
         m_tmp_clauses.push_back(std::make_pair(clausep, lits));
     }
@@ -3238,7 +3241,7 @@ namespace smt {
             }
 
             if (unassigned != null_literal) {
-                shuffle(lits.size(), lits.c_ptr(), m_random);
+                shuffle(lits.size(), lits.data(), m_random);
                 push_scope();
                 assign(unassigned, b_justification::mk_axiom(), true);
                 return l_undef;
@@ -3347,7 +3350,7 @@ namespace smt {
         reset_assumptions();
         pop_to_base_lvl(); // undo the push_scope() performed by init_assumptions
         m_search_lvl = m_base_lvl;
-        std::sort(m_unsat_core.c_ptr(), m_unsat_core.c_ptr() + m_unsat_core.size(), ast_lt_proc());
+        std::sort(m_unsat_core.data(), m_unsat_core.data() + m_unsat_core.size(), ast_lt_proc());
         TRACE("unsat_core_bug", tout << "unsat core:\n" << m_unsat_core << "\n";);
         validate_unsat_core();
         // theory validation of unsat core
@@ -3549,7 +3552,7 @@ namespace smt {
             parallel p(*this);
             return p(asms);
         }
-        lbool r;
+        lbool r = l_undef;
         do {
             pop_to_base_lvl();
             expr_ref_vector asms(m, num_assumptions, assumptions);
@@ -3570,7 +3573,7 @@ namespace smt {
         if (!check_preamble(true)) return l_undef;
         TRACE("before_search", display(tout););
         setup_context(false);
-        lbool r;
+        lbool r = l_undef;
         do {
             pop_to_base_lvl();
             expr_ref_vector asms(cube);
@@ -4096,7 +4099,7 @@ namespace smt {
                 expr * * atoms         = m_conflict_resolution->get_lemma_atoms();
                 for (unsigned i = 0; i < num_lits; i++) {
                     literal l   = lits[i];
-                    if (l.var() >= static_cast<int>(num_bool_vars)) {
+                    if (l.var() >= num_bool_vars) {
                         // This boolean variable was deleted during backtracking, it need to be recreated.
                         // Remark: atom may be a negative literal (not a). Z3 creates Boolean variables for not-gates that
                         // are nested in terms. Example: let f be a uninterpreted function from Bool -> Int.
@@ -4188,7 +4191,7 @@ namespace smt {
                   for (unsigned i = 0; i < num_lits; i++) {
                       display_literal(tout, v[i]);
                       tout << "\n";
-                      v[i].display(tout, m, m_bool_var2expr.c_ptr());
+                      smt::display(tout, v[i], m, m_bool_var2expr.data());
                       tout << "\n\n";
                   }
                   tout << "\n";);
@@ -4354,8 +4357,8 @@ namespace smt {
     bool context::assume_eq(enode * lhs, enode * rhs) {
         if (lhs->get_root() == rhs->get_root())
             return false; // it is not necessary to assume the eq.
-        expr * _lhs = lhs->get_owner();
-        expr * _rhs = rhs->get_owner();
+        expr * _lhs = lhs->get_expr();
+        expr * _rhs = rhs->get_expr();
         expr * eq = mk_eq_atom(_lhs, _rhs);
         TRACE("assume_eq", tout << "creating interface eq:\n" << mk_pp(eq, m) << "\n";);
         if (m.is_false(eq)) {
@@ -4412,7 +4415,7 @@ namespace smt {
     bool context::is_shared(enode * n) const {
         n = n->get_root();
         unsigned num_th_vars = n->get_num_th_vars();
-        if (m.is_ite(n->get_owner())) {
+        if (m.is_ite(n->get_expr())) {
             return true;
         }
         switch (num_th_vars) {
@@ -4431,7 +4434,7 @@ namespace smt {
             theory_id th_id     = l->get_id();
 
             for (enode * parent : enode::parents(n)) {
-                app* p = parent->get_owner();
+                app* p = parent->get_expr();
                 family_id fid = p->get_family_id();
                 if (fid != th_id && fid != m.get_basic_family_id()) {
                     TRACE("is_shared", tout << enode_pp(n, *this) 
@@ -4475,7 +4478,7 @@ namespace smt {
     }
 
     bool context::get_value(enode * n, expr_ref & value) {
-        sort * s      = n->get_owner()->get_sort();
+        sort * s      = n->get_sort();
         family_id fid = s->get_family_id();
         theory * th   = get_theory(fid);
         if (th == nullptr)
@@ -4582,31 +4585,8 @@ namespace smt {
     }
 
     void context::add_rec_funs_to_model() {
-        if (!m_model) return;
-        recfun::util u(m);
-        func_decl_ref_vector recfuns = u.get_rec_funs();
-        for (func_decl* f : recfuns) {
-            auto& def = u.get_def(f);
-            expr* rhs = def.get_rhs();
-            if (!rhs) continue;
-            if (f->get_arity() == 0) {
-                m_model->register_decl(f, rhs);
-                continue;
-            }			
-
-            func_interp* fi = alloc(func_interp, m, f->get_arity());
-            // reverse argument order so that variable 0 starts at the beginning.
-            expr_ref_vector subst(m);
-            for (unsigned i = 0; i < f->get_arity(); ++i) {
-                subst.push_back(m.mk_var(i, f->get_domain(i)));
-            }
-            var_subst sub(m, true);
-            expr_ref bodyr = sub(rhs, subst.size(), subst.c_ptr());
-
-            fi->set_else(bodyr);
-            m_model->register_decl(f, fi);
-        }
-        TRACE("model", tout << *m_model << "\n";);
+        if (m_model)
+            m_model->add_rec_funs();
     }
 
 };

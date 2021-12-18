@@ -28,11 +28,12 @@ skolem::skolem(ast_manager& m, th_rewriter& rw):
     m_tail           = "seq.tail";
     m_seq_first      = "seq.first";
     m_seq_last       = "seq.last";
-    m_indexof_left   = "seq.idx.left";
-    m_indexof_right  = "seq.idx.right";
+    m_indexof_left   = "seq.idx.l";
+    m_indexof_right  = "seq.idx.r";
     m_aut_step       = "aut.step";
     m_pre            = "seq.pre";  // (seq.pre s l):  prefix of string s of length l
     m_post           = "seq.post"; // (seq.post s l): suffix of string s of length k, based on extract starting at index i of length l
+    m_postp          = "seq.postp";
     m_eq             = "seq.eq";
     m_max_unfolding  = "seq.max_unfolding";
     m_length_limit   = "seq.length_limit";
@@ -112,7 +113,7 @@ decompose_main:
     }
     else if (is_skolem(m_tail, e) && a.is_numeral(to_app(e)->get_arg(1), r)) {        
         expr* s = to_app(e)->get_arg(0);        
-        expr* idx = a.mk_int(r.get_unsigned() + 1);
+        expr* idx = a.mk_int(r + 1);
         head = seq.str.mk_unit(seq.str.mk_nth_i(s, idx));
         tail = mk(m_tail, s, idx);
         m_rewrite(head);
@@ -198,6 +199,9 @@ expr_ref skolem::mk_step(expr* s, expr* idx, expr* re, unsigned i, unsigned j, e
     args.push_back(a.mk_int(i));
     args.push_back(a.mk_int(j));
     args.push_back(t);
-    return expr_ref(seq.mk_skolem(m_aut_step, args.size(), args.c_ptr(), m.mk_bool_sort()), m);
+    return expr_ref(seq.mk_skolem(m_aut_step, args.size(), args.data(), m.mk_bool_sort()), m);
 }
 
+expr_ref skolem::mk_digit2bv(expr* ch, sort* bv_sort) {
+    return mk(symbol("seq.digit2bv"), ch, nullptr, nullptr, nullptr, bv_sort);
+}

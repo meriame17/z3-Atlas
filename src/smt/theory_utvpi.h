@@ -77,7 +77,6 @@ namespace smt {
             atom(bool_var bv, int pos, int neg) : 
                 m_bvar(bv), m_true(false),
                 m_pos(pos), m_neg(neg) {}
-            ~atom() {}
             bool_var get_bool_var() const { return m_bvar; }
             void assign_eh(bool is_true) { m_true = is_true; }
             int get_asserted_edge() const { return this->m_true?m_pos:m_neg; }
@@ -324,7 +323,7 @@ namespace smt {
 
         void new_eq_or_diseq(bool is_eq, th_var v1, th_var v2, justification& eq_just);
         
-        bool is_int(theory_var v) const { return a.is_int(get_enode(v)->get_owner()); }
+        bool is_int(theory_var v) const { return a.is_int(get_enode(v)->get_expr()); }
 
         th_var get_zero(sort* s) { return a.is_int(s) ? m_izero : m_rzero; }
 

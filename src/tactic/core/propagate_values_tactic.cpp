@@ -146,6 +146,9 @@ class propagate_values_tactic : public tactic {
         if (m_max_rounds == 0)
             goto end;
 
+        if (m_goal->proofs_enabled())
+            goto end;
+
         m_subst = alloc(expr_substitution, m, g->unsat_core_enabled(), g->proofs_enabled());
         m_r.set_substitution(m_subst.get());
         m_occs(*m_goal);
@@ -212,6 +215,8 @@ public:
     tactic * translate(ast_manager & m) override {
         return alloc(propagate_values_tactic, m, m_params);
     }
+
+    char const* name() const override { return "propagate_values"; }
 
     void updt_params(params_ref const & p) override {
         m_params = p;

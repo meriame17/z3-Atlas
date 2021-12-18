@@ -102,9 +102,13 @@ namespace euf {
             struct new_lits_qhead {};
             struct inconsistent {};
             struct value_assignment {};
-            enum class tag_t { is_set_parent, is_add_node, is_toggle_merge, 
-                         is_add_th_var, is_replace_th_var, is_new_lit, is_new_th_eq,
-                         is_new_th_eq_qhead, is_new_lits_qhead, is_inconsistent, is_value_assignment };
+            struct lbl_hash {};
+            struct lbl_set {};
+            struct update_children {};
+            enum class tag_t { is_set_parent, is_add_node, is_toggle_merge, is_update_children,
+                    is_add_th_var, is_replace_th_var, is_new_lit, is_new_th_eq,
+                    is_lbl_hash, is_new_th_eq_qhead, is_new_lits_qhead, 
+                    is_inconsistent, is_value_assignment, is_lbl_set };
             tag_t  tag;
             enode* r1;
             enode* n1;
@@ -116,6 +120,8 @@ namespace euf {
                 };
                 unsigned qhead;
                 bool     m_inconsistent;
+                signed char m_lbl_hash;
+                unsigned long long m_lbls;
             };
             update_record(enode* r1, enode* n1, unsigned r2_num_parents) :
                 tag(tag_t::is_set_parent), r1(r1), n1(n1), r2_num_parents(r2_num_parents) {}
@@ -139,6 +145,12 @@ namespace euf {
                 tag(tag_t::is_inconsistent), r1(nullptr), n1(nullptr), m_inconsistent(inc) {}
             update_record(enode* n, value_assignment) :
                 tag(tag_t::is_value_assignment), r1(n), n1(nullptr), qhead(0) {}
+            update_record(enode* n, lbl_hash):
+                tag(tag_t::is_lbl_hash), r1(n), n1(nullptr), m_lbl_hash(n->m_lbl_hash) {}
+            update_record(enode* n, lbl_set):
+                tag(tag_t::is_lbl_set), r1(n), n1(nullptr), m_lbls(n->m_lbls.get()) {}    
+            update_record(enode* n, update_children) :
+                tag(tag_t::is_update_children), r1(n), n1(nullptr), r2_num_parents(UINT_MAX) {}
         };
         ast_manager&           m;
         svector<to_merge>      m_to_merge;
@@ -147,26 +159,28 @@ namespace euf {
         svector<update_record> m_updates;
         unsigned_vector        m_scopes;
         enode_vector           m_expr2enode;
-        enode*                 m_tmp_eq { nullptr };
-        enode*                 m_tmp_node { nullptr };
-        unsigned               m_tmp_node_capacity { 0 };
+        enode*                 m_tmp_eq = nullptr;
+        enode*                 m_tmp_node = nullptr;
+        unsigned               m_tmp_node_capacity = 0;
+        tmp_app                m_tmp_app;
         enode_vector           m_nodes;
         expr_ref_vector        m_exprs;
+        func_decl_ref_vector   m_eq_decls;
         vector<enode_vector>   m_decl2enodes;
         enode_vector           m_empty_enodes;
-        unsigned               m_num_scopes { 0 };
-        bool                   m_inconsistent { false };
-        enode                  *m_n1 { nullptr };
-        enode                  *m_n2 { nullptr };
+        unsigned               m_num_scopes = 0;
+        bool                   m_inconsistent = false;
+        enode                  *m_n1 = nullptr;
+        enode                  *m_n2 = nullptr;
         justification          m_justification;
-        unsigned               m_new_lits_qhead { 0 };
-        unsigned               m_new_th_eqs_qhead { 0 };
+        unsigned               m_new_lits_qhead = 0;
+        unsigned               m_new_th_eqs_qhead = 0;
         svector<enode_bool_pair>  m_new_lits;
         svector<th_eq>         m_new_th_eqs;
         bool_vector            m_th_propagates_diseqs;
         enode_vector           m_todo;
         stats                  m_stats;
-        bool                   m_uses_congruence { false };
+        bool                   m_uses_congruence = false;
         std::function<void(enode*,enode*)>     m_on_merge;
         std::function<void(enode*)>            m_on_make;
         std::function<void(expr*,expr*,expr*)> m_used_eq;
@@ -201,7 +215,7 @@ namespace euf {
         void push_to_lca(enode* a, enode* lca);
         void push_congruence(enode* n1, enode* n2, bool commutative);
         void push_todo(enode* n);
-        void toggle_merge_enabled(enode* n);
+        void toggle_merge_enabled(enode* n, bool backtracking);
 
         enode_bool_pair insert_table(enode* p);
         void erase_from_table(enode* p);
@@ -225,7 +239,7 @@ namespace euf {
         enode* find(expr* f, unsigned n, enode* const* args);
         enode* mk(expr* f, unsigned generation, unsigned n, enode *const* args);
         enode_vector const& enodes_of(func_decl* f);
-        void push() { ++m_num_scopes; }
+        void push() { if (!m_to_merge.empty()) propagate(); ++m_num_scopes; }
         void pop(unsigned num_scopes);
 
         /**
@@ -250,9 +264,11 @@ namespace euf {
         /**
         * \brief check if two nodes are known to be disequal.
         */
-        bool are_diseq(enode* a, enode* b) const;
+        bool are_diseq(enode* a, enode* b);
 
-        enode * get_enode_eq_to(func_decl * f, unsigned num_args, enode * const * args) { UNREACHABLE(); return nullptr; }
+        enode* get_enode_eq_to(func_decl* f, unsigned num_args, enode* const* args);
+
+        enode* tmp_eq(enode* a, enode* b);
 
         /**
            \brief Maintain and update cursor into propagated consequences.
@@ -317,6 +333,7 @@ namespace euf {
         void collect_statistics(statistics& st) const;
 
         unsigned num_scopes() const { return m_scopes.size() + m_num_scopes; }
+        unsigned num_nodes() const { return m_nodes.size(); }
     };
 
     inline std::ostream& operator<<(std::ostream& out, egraph const& g) { return g.display(out); }

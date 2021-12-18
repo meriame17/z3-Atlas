@@ -45,6 +45,7 @@ namespace opt {
 
     class maxsat_context {
     public:        
+        virtual ~maxsat_context() = default;
         virtual generic_model_converter& fm() = 0;   // converter that removes fresh names introduced by simplification.
         virtual bool sat_enabled() const = 0;       // is using th SAT solver core enabled?
         virtual solver& get_solver() = 0;           // retrieve solver object (SAT or SMT solver)
@@ -117,6 +118,17 @@ namespace opt {
             {}
         };
 
+      double m_time = 0;      
+      class scoped_time {
+        context& c;
+        timer t;
+      public:
+        scoped_time(context& c):c(c) { c.m_time = 0; }
+        ~scoped_time() { c.m_time = t.get_seconds(); }
+      };
+
+
+
         class scoped_state {
             ast_manager& m;
             arith_util   m_arith;
@@ -179,10 +191,11 @@ namespace opt {
         func_decl_ref_vector         m_objective_refs;
         expr_ref_vector              m_core;
         tactic_ref                   m_simplify;
-        bool                         m_enable_sat;
-        bool                         m_enable_sls;
-        bool                         m_is_clausal;
-        bool                         m_pp_neat;
+        bool                         m_enable_sat { true } ;
+        bool                         m_enable_sls { false };
+        bool                         m_is_clausal { false };
+        bool                         m_pp_neat { true };
+        bool                         m_pp_wcnf { false };
         symbol                       m_maxsat_engine;
         symbol                       m_logic;
         svector<symbol>              m_labels;
@@ -232,7 +245,7 @@ namespace opt {
         void get_lower(unsigned idx, expr_ref_vector& es) { to_exprs(get_lower_as_num(idx), es); }
         void get_upper(unsigned idx, expr_ref_vector& es) { to_exprs(get_upper_as_num(idx), es); }
 
-        std::string to_string() const;
+        std::string to_string();
 
 
         unsigned num_objectives() override { return m_scoped_state.m_objectives.size(); }
@@ -259,6 +272,13 @@ namespace opt {
             m_on_model_ctx = ctx; 
             m_on_model_eh  = on_model; 
         }
+
+      
+        void collect_timer_stats(statistics& st) const {
+	  if (m_time != 0) 
+	    st.update("time", m_time);
+	}
+
 
     private:
         lbool execute(objective const& obj, bool committed, bool scoped);
@@ -301,8 +321,8 @@ namespace opt {
         inf_eps get_upper_as_num(unsigned idx);
 
 
-        struct is_bv;
-        bool probe_bv();
+        struct is_fd;
+        bool probe_fd();
 
         struct is_propositional_fn;
         bool is_propositional(expr* e);
@@ -322,7 +342,7 @@ namespace opt {
 
         std::string to_string(bool is_internal, expr_ref_vector const& hard, vector<objective> const& objectives) const;
         std::string to_string_internal() const;
-
+        std::string to_wcnf();
 
         void validate_lex();
         void validate_maxsat(symbol const& id);
@@ -339,6 +359,8 @@ namespace opt {
         // quantifiers
         bool is_qsat_opt();
         lbool run_qsat_opt();
+
+      
     };
 
 }

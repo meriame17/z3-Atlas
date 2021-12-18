@@ -31,7 +31,8 @@ namespace seq {
         a(m),
         seq(m),
         m_sk(m, r),
-        m_clause(m)
+        m_clause(m),
+        m_trail(m)
     {}
         
     expr_ref axioms::mk_sub(expr* x, expr* y) {
@@ -40,14 +41,80 @@ namespace seq {
         return result;
     }
 
+    expr_ref axioms::mk_ge_e(expr* x, expr* y) {
+        expr_ref ge(a.mk_ge(x, y), m);
+        m_rewrite(ge);
+        return ge;
+    }
+
+    expr_ref axioms::mk_le_e(expr* x, expr* y) {
+        expr_ref le(a.mk_le(x, y), m);
+        m_rewrite(le);
+        return le;
+    }
+
+    expr_ref axioms::mk_seq_eq(expr* a, expr* b) { 
+        SASSERT(seq.is_seq(a) && seq.is_seq(b)); 
+        expr_ref result(m_sk.mk_eq(a, b), m);
+        m_set_phase(result);
+        return result;
+    }
+
+    /**
+     * Create a special equality predicate for sequences.
+     * The sequence solver ignores the predicate when it
+     * is assigned to false. If the predicate is assigned
+     * to true it enforces the equality.
+     * 
+     * This is intended to save the solver from satisfying disequality
+     * constraints that are not relevant. The use of this predicate
+     * needs some care because it can lead to incompleteness.
+     * The clauses where this predicate are used have to ensure
+     * that whenever it is assigned false, the clause
+     * is satisfied by a solution where the equality is either false
+     * or irrelevant. 
+     */
+    expr_ref axioms::mk_eq_empty(expr* e) { 
+        return mk_seq_eq(seq.str.mk_empty(e->get_sort()), e);
+    }
+
     expr_ref axioms::purify(expr* e) { 
         if (!e)
             return expr_ref(m);
         if (get_depth(e) == 1)
             return expr_ref(e, m);
-        expr_ref p = expr_ref(m.mk_fresh_const("seq.purify", e->get_sort()), m);
+        if (m.is_value(e))
+            return expr_ref(e, m);
+
+        expr_ref p(e, m);
+        m_rewrite(p);
+        if (p == e)
+            return p;
+
+        expr* r = nullptr;
+        if (m_purified.find(e, r)) 
+            p = r;
+        else {
+            gc_purify();
+            p = expr_ref(m.mk_fresh_const("seq.purify", e->get_sort()), m);
+            m_purified.insert(e, p);
+            m_trail.push_back(e);
+            m_trail.push_back(p);
+        }
         add_clause(mk_eq(p, e));
         return expr_ref(p, m);
+    }
+
+    void axioms::gc_purify() {
+        if (m_trail.size() != 4000)
+            return;
+        unsigned new_size = 2000;
+        expr_ref_vector new_trail(m, new_size, m_trail.data() + new_size);
+        m_purified.reset();
+        for (unsigned i = 0; i < new_size; i += 2) 
+            m_purified.insert(new_trail.get(i), new_trail.get(i + 1));
+        m_trail.reset();
+        m_trail.append(new_trail);
     }
     
     expr_ref axioms::mk_len(expr* s) {
@@ -127,6 +194,9 @@ namespace seq {
         auto s = purify(_s);
         auto i = purify(_i);
         auto l = purify(_l);
+        if (small_segment_axiom(e, _s, _i, _l)) 
+            return;
+
         if (is_tail(s, _i, _l)) {
             tail_axiom(e, s);
             return;
@@ -135,16 +205,16 @@ namespace seq {
             drop_last_axiom(e, s);
             return;
         }
-        if (is_extract_prefix0(s, _i, _l)) {
+#if 1
+        if (is_extract_prefix(s, _i, _l)) {
             extract_prefix_axiom(e, s, l);
             return;
         }
-#if 0
+#endif
         if (is_extract_suffix(s, _i, _l)) {
             extract_suffix_axiom(e, s, i);
             return;
         }
-#endif
         TRACE("seq", tout << s << " " << i << " " << l << "\n";);
         expr_ref x = m_sk.mk_pre(s, i);
         expr_ref ls = mk_len(_s);
@@ -214,11 +284,24 @@ namespace seq {
         return l1 == l2;
     }
 
+    bool axioms::small_segment_axiom(expr* s, expr* e, expr* i, expr* l) {
+        rational ln;
+        if (a.is_numeral(i, ln) && ln >= 0 && a.is_numeral(l, ln) && ln <= 5) {
+            expr_ref_vector es(m);
+            for (unsigned j = 0; j < ln; ++j) 
+                es.push_back(seq.str.mk_at(e, a.mk_add(i, a.mk_int(j))));
+            expr_ref r(seq.str.mk_concat(es, e->get_sort()), m);
+            add_clause(mk_seq_eq(r, s));
+            return true;
+        }
+        return false;
+    }
+
+
     bool axioms::is_tail(expr* s, expr* i, expr* l) {
         rational i1;
-        if (!a.is_numeral(i, i1) || !i1.is_one()) {
+        if (!a.is_numeral(i, i1) || !i1.is_one()) 
             return false;
-        }
         expr_ref l2(m), l1(l, m);
         l2 = mk_sub(mk_len(s), a.mk_int(1));
         m_rewrite(l1);
@@ -226,7 +309,7 @@ namespace seq {
         return l1 == l2;
     }
 
-    bool axioms::is_extract_prefix0(expr* s, expr* i, expr* l) {
+    bool axioms::is_extract_prefix(expr* s, expr* i, expr* l) {
         rational i1;
         return a.is_numeral(i, i1) && i1.is_zero();    
     }
@@ -244,8 +327,7 @@ namespace seq {
       0 <= l <= len(s) => len(e) = l
       len(s) < l => e = s
     */
-    void axioms::extract_prefix_axiom(expr* e, expr* s, expr* l) {
-        
+    void axioms::extract_prefix_axiom(expr* e, expr* s, expr* l) {        
         TRACE("seq", tout << "prefix " << mk_bounded_pp(e, m, 2) << " " << mk_bounded_pp(s, m, 2) << " " << mk_bounded_pp(l, m, 2) << "\n";);
         expr_ref le = mk_len(e);
         expr_ref ls = mk_len(s);
@@ -352,11 +434,11 @@ namespace seq {
         expr_ref cnt(seq.str.mk_contains(t, s), m);
         expr_ref i_eq_m1 = mk_eq(i, minus_one);
         expr_ref i_eq_0 = mk_eq(i, zero);
-        expr_ref s_eq_empty = mk_eq_empty(s);
+        expr_ref s_eq_empty = mk_eq(s, seq.str.mk_empty(s->get_sort()));
         expr_ref t_eq_empty = mk_eq_empty(t);
 
         // |t| = 0 => |s| = 0 or indexof(t,s,offset) = -1
-        // ~contains(t,s) <=> indexof(t,s,offset) = -1
+        // ~contains(t,s) => indexof(t,s,offset) = -1
 
         add_clause(cnt,  i_eq_m1);
         add_clause(~t_eq_empty, s_eq_empty, i_eq_m1);
@@ -408,7 +490,7 @@ namespace seq {
             // 0 <= offset & offset < len(t) => len(x) = offset
             // 0 <= offset & offset < len(t) & indexof(y,s,0) = -1 => -1 = i
             // 0 <= offset & offset < len(t) & indexof(y,s,0) >= 0 =>
-            //                  -1 = indexof(y,s,0) + offset = indexof(t, s, offset)
+            //                  indexof(y,s,0) + offset = indexof(t, s, offset)
 
             add_clause(~offset_ge_0, offset_ge_len, mk_seq_eq(t, mk_concat(x, y)));
             add_clause(~offset_ge_0, offset_ge_len, mk_eq(mk_len(x), offset));
@@ -594,12 +676,14 @@ namespace seq {
     
         // n >= 0 => stoi(itos(n)) = n
         app_ref stoi(seq.str.mk_stoi(e), m);
-        add_clause(~ge0, mk_eq(stoi, n));
+        expr_ref eq = mk_eq(stoi, n);
+        add_clause(~ge0, eq);
+        m_set_phase(eq);
 
         // itos(n) does not start with "0" when n > 0
         // n = 0 or at(itos(n),0) != "0"
         // alternative: n >= 0 => itos(stoi(itos(n))) = itos(n)
-        expr_ref zs(seq.str.mk_string(symbol("0")), m);
+        expr_ref zs(seq.str.mk_string("0"), m);
         m_rewrite(zs);
         expr_ref eq0 = mk_eq(n, zero);
         expr_ref at0 = mk_eq(seq.str.mk_at(e, zero), zs);
@@ -610,7 +694,8 @@ namespace seq {
     /**
        stoi(s) >= -1
        stoi("") = -1
-       stoi(s) >= 0 => is_digit(nth(s,0))
+       stoi(s) >= 0 => is_digit(nth(s,0)) 
+       stoi(s) >= 0 => len(s) >= 1
     */
     void axioms::stoi_axiom(expr* e) {
         TRACE("seq", tout << mk_pp(e, m) << "\n";);
@@ -618,8 +703,10 @@ namespace seq {
         expr* s = nullptr;
         VERIFY (seq.str.is_stoi(e, s));    
         add_clause(mk_ge(e, -1));                             // stoi(s) >= -1
-        add_clause(~mk_eq_empty(s), mk_eq(e, a.mk_int(-1)));  // s = "" => stoi(s) = -1
+        add_clause(mk_eq(seq.str.mk_stoi(seq.str.mk_empty(s->get_sort())), a.mk_int(-1)));
+//      add_clause(~mk_eq_empty(s), mk_eq(e, a.mk_int(-1)));  // s = "" => stoi(s) = -1
         add_clause(~ge0, is_digit(mk_nth(s, 0)));             // stoi(s) >= 0 => is_digit(nth(s,0))
+        add_clause(~ge0, mk_ge(mk_len(s), 1));                // stoi(s) >= 0 => len(s) >= 1
     }
 
 
@@ -683,6 +770,103 @@ namespace seq {
         }
     }
 
+    void axioms::ubv2s_axiom(expr* b, unsigned k) {
+        expr_ref ge10k(m), ge10k1(m), eq(m);
+        bv_util bv(m);
+        sort* bv_sort = b->get_sort();
+        rational pow(1);
+        for (unsigned i = 0; i < k; ++i)
+            pow *= 10;
+        ge10k = bv.mk_ule(bv.mk_numeral(pow, bv_sort), b);        
+        ge10k1 = bv.mk_ule(bv.mk_numeral(pow * 10, bv_sort), b);
+        unsigned sz = bv.get_bv_size(b);
+        expr_ref_vector es(m);
+        expr_ref bb(b, m), ten(bv.mk_numeral(10, sz), m);
+        rational p(1);
+        for (unsigned i = 0; i <= k; ++i) {
+            if (p > 1)
+                bb = bv.mk_bv_udiv(b, bv.mk_numeral(p, bv_sort));
+            es.push_back(seq.str.mk_unit(m_sk.mk_ubv2ch(bv.mk_bv_urem(bb, ten))));
+            p *= 10;
+        }
+        es.reverse();
+        eq = m.mk_eq(seq.str.mk_ubv2s(b), seq.str.mk_concat(es, seq.str.mk_string_sort()));
+        SASSERT(pow < rational::power_of_two(sz));
+        if (k == 0)
+            add_clause(ge10k1, eq);
+        else if (pow * 10 >= rational::power_of_two(sz))
+            add_clause(~ge10k, eq);
+        else 
+            add_clause(~ge10k, ge10k1, eq);
+    }
+
+    /*
+    * 1 <= len(ubv2s(b)) <= k, where k is min such that 10^k > 2^sz
+    */
+    void axioms::ubv2s_len_axiom(expr* b) {
+        bv_util bv(m);
+        sort* bv_sort = b->get_sort();
+        unsigned sz = bv.get_bv_size(bv_sort);
+        unsigned k = 1;
+        rational pow(10);
+        while (pow <= rational::power_of_two(sz))
+            ++k, pow *= 10;
+        expr_ref len(seq.str.mk_length(seq.str.mk_ubv2s(b)), m);
+        expr_ref ge(a.mk_ge(len, a.mk_int(1)), m);
+        expr_ref le(a.mk_le(len, a.mk_int(k)), m);
+        add_clause(le);
+        add_clause(ge);
+    }
+
+    /*
+    *   len(ubv2s(b)) = k => 10^k-1 <= b < 10^{k}   k > 1
+    *   len(ubv2s(b)) = 1 =>  b < 10^{1}   k = 1
+    *   len(ubv2s(b)) >= k => is_digit(nth(ubv2s(b), 0)) & ... & is_digit(nth(ubv2s(b), k-1))
+    */
+    void axioms::ubv2s_len_axiom(expr* b, unsigned k) {
+        expr_ref ge10k(m), ge10k1(m), eq(m), is_digit(m);
+        expr_ref ubvs(seq.str.mk_ubv2s(b), m);
+        expr_ref len(seq.str.mk_length(ubvs), m);
+        expr_ref ge_len(a.mk_ge(len, a.mk_int(k)), m);
+        bv_util bv(m);
+        sort* bv_sort = b->get_sort();
+        unsigned sz = bv.get_bv_size(bv_sort);
+        rational pow(1);
+        for (unsigned i = 1; i < k; ++i)
+            pow *= 10;
+
+        if (pow >= rational::power_of_two(sz)) {
+            expr_ref ge(a.mk_ge(len, a.mk_int(k)), m);
+            add_clause(~ge);
+            return;
+        }
+
+        ge10k = bv.mk_ule(bv.mk_numeral(pow, bv_sort), b);        
+        ge10k1 = bv.mk_ule(bv.mk_numeral(pow * 10, bv_sort), b);
+        eq = m.mk_eq(len, a.mk_int(k));
+
+        if (pow * 10 < rational::power_of_two(sz))
+            add_clause(~eq, ~ge10k1);
+        if (k > 1)
+            add_clause(~eq, ge10k);
+
+        for (unsigned i = 0; i < k; ++i) {
+            expr* ch = seq.str.mk_nth_c(ubvs, i);
+            is_digit = seq.mk_char_is_digit(ch);
+            add_clause(~ge_len, is_digit);
+        }
+    }
+
+    void axioms::ubv2ch_axiom(sort* bv_sort) {
+        bv_util bv(m);
+        expr_ref eq(m);
+        unsigned sz = bv.get_bv_size(bv_sort);
+        for (unsigned i = 0; i < 10; ++i) {
+            eq = m.mk_eq(m_sk.mk_ubv2ch(bv.mk_numeral(i, sz)), seq.mk_char('0' + i));
+            add_clause(eq);
+        }
+    }
+
     /**
        Let s := itos(e)
 
@@ -727,17 +911,12 @@ namespace seq {
     }
 
     expr_ref axioms::is_digit(expr* ch) {
-        expr_ref isd = expr_ref(m_sk.mk_is_digit(ch), m);
-        expr_ref lo(seq.mk_le(seq.mk_char('0'), ch), m);
-        expr_ref hi(seq.mk_le(ch, seq.mk_char('9')), m);
-        add_clause(~lo, ~hi, isd);
-        add_clause(~isd, lo);
-        add_clause(~isd, hi);
-        return isd;
+        return expr_ref(seq.mk_char_is_digit(ch), m);
     }
 
     expr_ref axioms::mk_digit2int(expr* ch) {
-        return expr_ref(a.mk_add(seq.mk_char2int(ch), a.mk_int(-((int)'0'))), m);;
+        m_ensure_digits();
+        return expr_ref(m_sk.mk_digit2int(ch), m);
     }
 
     /**
@@ -851,6 +1030,29 @@ namespace seq {
         add_clause(le, emp);
     }
 
+    /**
+     * Assume that r has the property that if r accepts string p
+     * then r does *not* accept any suffix of p. It is conceptually easy to 
+     * convert a deterministic automaton for a regex to a suffix blocking acceptor
+     * by removing outgoing edges from accepting states and redirecting them
+     * to a sink. Alternative, introduce a different string membership predicate that is 
+     * prefix sensitive. 
+     *
+     * Let e = replace_re(s, r, t)
+     * Then a claim is that the following axioms suffice to encode str.replace_re
+     * 
+     * s = "" => e = t
+     * r = "" => e = s + t
+     * s not in .*r.* => e = t
+     * s = x + y + [z] + u & y + [z] in r & x + y not in .*r.* => e = x + t + u
+     */
+    void axioms::replace_re_axiom(expr* e) {
+        expr* s = nullptr, *r = nullptr, *t = nullptr;
+        VERIFY(seq.str.is_replace_re(e, s, r, t)); 
+        NOT_IMPLEMENTED_YET();
+    }
+
+
 
     /**
        Unit is injective:
@@ -865,11 +1067,18 @@ namespace seq {
     }
 
     /**
+       suffix(s, t):
+       - the sequence s is a suffix of t.
 
-       suffix(s, t) => s = seq.suffix_inv(s, t) + t
+       Positive case is handled by the solver when the atom is asserted
+       suffix(s, t) => t = seq.suffix_inv(s, t) + s
+
+       Negative case is handled by axioms when the negation of the atom is asserted
        ~suffix(s, t) => len(s) > len(t) or s = y(s, t) + unit(c(s, t)) + x(s, t)
        ~suffix(s, t) => len(s) > len(t) or t = z(s, t) + unit(d(s, t)) + x(s, t)
        ~suffix(s, t) => len(s) > len(t) or c(s,t) != d(s,t)
+
+       Symmetric axioms are provided for prefix
 
     */
 
@@ -923,7 +1132,7 @@ namespace seq {
         expr_ref c = m_sk.mk("seq.prefix.c", s, t, char_sort);
         expr_ref d = m_sk.mk("seq.prefix.d", s, t, char_sort);
         add_clause(lit, s_gt_t, mk_seq_eq(s, mk_concat(x, seq.str.mk_unit(c), y)));
-        add_clause(lit, s_gt_t, mk_seq_eq(t, mk_concat(x, seq.str.mk_unit(d), z)), mk_seq_eq(t, x));
+        add_clause(lit, s_gt_t, mk_seq_eq(t, mk_concat(x, seq.str.mk_unit(d), z)));
         add_clause(lit, s_gt_t, ~mk_eq(c, d));
 #endif
     }
@@ -957,8 +1166,8 @@ namespace seq {
 
     /**
        ~contains(a, b) => ~prefix(b, a)
-       ~contains(a, b) => ~contains(tail(a), b) or a = empty
-       ~contains(a, b) & a = empty => b != empty
+       ~contains(a, b) => ~contains(tail(a), b) 
+       a = empty => tail(a) = empty
        ~(a = empty) => a = head + tail 
     */
     void axioms::unroll_not_contains(expr* e) {
@@ -980,9 +1189,10 @@ namespace seq {
         expr_ref bound_tracker = m_sk.mk_length_limit(s, k);
         expr* s0 = nullptr;
         if (seq.str.is_stoi(s, s0)) 
-            s = s0; 
+            s = s0;
         add_clause(~bound_tracker, mk_le(mk_len(s), k));
         return bound_tracker;
     }
+
 
 }

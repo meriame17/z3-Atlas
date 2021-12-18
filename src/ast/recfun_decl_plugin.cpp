@@ -47,14 +47,16 @@ namespace recfun {
           m_def(d) {        
         parameter p(case_index);
         func_decl_info info(fid, OP_FUN_CASE_PRED, 1, &p);
-        m_pred = m.mk_func_decl(symbol(name.c_str()), arg_sorts.size(), arg_sorts.c_ptr(), m.mk_bool_sort(), info);
+        m_pred = m.mk_func_decl(symbol(name.c_str()), arg_sorts.size(), arg_sorts.data(), m.mk_bool_sort(), info);
     }
 
     def::def(ast_manager &m, family_id fid, symbol const & s,
              unsigned arity, sort* const * domain, sort* range, bool is_generated)
         :   m(m), m_name(s),
             m_domain(m, arity, domain), 
-            m_range(range, m), m_vars(m), m_cases(),
+            m_range(range, m), 
+            m_vars(m), 
+            m_cases(),
             m_decl(m), 
             m_rhs(m),
             m_fid(fid)
@@ -207,6 +209,7 @@ namespace recfun {
     void def::compute_cases(util& u,
                             replace& subst, 
                             is_immediate_pred & is_i, 
+                            bool is_macro,
                             unsigned n_vars, var *const * vars, expr* rhs)
     {
         VERIFY(m_cases.empty() && "cases cannot already be computed");
@@ -225,7 +228,7 @@ namespace recfun {
         expr_ref_vector conditions(m);
 
         // is the function a macro (unconditional body)?
-        if (n_vars == 0 || !contains_ite(u, rhs)) {
+        if (is_macro || n_vars == 0 || !contains_ite(u, rhs)) {
             // constant function or trivial control flow, only one (dummy) case
             add_case(name, 0, conditions, rhs);
             return;
@@ -333,10 +336,11 @@ namespace recfun {
         return alloc(def, m(), m_fid, name, n, domain, range, is_generated);
     }
 
-
-    void util::set_definition(replace& subst, promise_def & d, unsigned n_vars, var * const * vars, expr * rhs) {
-        expr_ref rhs1 = get_plugin().redirect_ite(subst, n_vars, vars, rhs);        
-        d.set_definition(subst, n_vars, vars, rhs1);
+    void util::set_definition(replace& subst, promise_def & d, bool is_macro, unsigned n_vars, var * const * vars, expr * rhs) {
+        expr_ref rhs1(rhs, m());
+        if (!is_macro)
+            rhs1 = get_plugin().redirect_ite(subst, n_vars, vars, rhs);        
+        d.set_definition(subst, is_macro, n_vars, vars, rhs1);
     }
 
     app_ref util::mk_num_rounds_pred(unsigned d) {
@@ -367,11 +371,11 @@ namespace recfun {
     };
 
     // set definition 
-    void promise_def::set_definition(replace& r, unsigned n_vars, var * const * vars, expr * rhs) {
+    void promise_def::set_definition(replace& r, bool is_macro, unsigned n_vars, var * const * vars, expr * rhs) {
         SASSERT(n_vars == d->get_arity());
                     
         is_imm_pred is_i(*u);
-        d->compute_cases(*u, r, is_i, n_vars, vars, rhs);
+        d->compute_cases(*u, r, is_i, is_macro, n_vars, vars, rhs);
     }
 
     namespace decl {
@@ -413,9 +417,19 @@ namespace recfun {
             m_defs.insert(d->get_decl(), d);
             return promise_def(&u(), d);
         }
+
+        void plugin::erase_def(func_decl* f) {
+            def* d = nullptr;
+            if (m_defs.find(f, d)) {
+                for (case_def & c : d->get_cases()) 
+                    m_case_defs.erase(c.get_decl());
+                m_defs.erase(f);
+                dealloc(d);
+            }
+        }
         
-        void plugin::set_definition(replace& r, promise_def & d, unsigned n_vars, var * const * vars, expr * rhs) {
-            u().set_definition(r, d, n_vars, vars, rhs);
+        void plugin::set_definition(replace& r, promise_def & d, bool is_macro, unsigned n_vars, var * const * vars, expr * rhs) {
+            u().set_definition(r, d, is_macro, n_vars, vars, rhs);
             for (case_def & c : d.get_def()->get_cases()) {
                 m_case_defs.insert(c.get_decl(), &c);
             }
@@ -425,12 +439,12 @@ namespace recfun {
             return !m_case_defs.empty();            
         }
 
-        def* plugin::mk_def(replace& subst, 
+        def* plugin::mk_def(replace& subst, bool is_macro,
                             symbol const& name, unsigned n, sort ** params, sort * range,
                             unsigned n_vars, var ** vars, expr * rhs) {
             promise_def d = mk_def(name, n, params, range);
             SASSERT(! m_defs.contains(d.get_def()->get_decl()));
-            set_definition(subst, d, n_vars, vars, rhs);
+            set_definition(subst, d, is_macro, n_vars, vars, rhs);
             return d.get_def();
         }
 
@@ -452,7 +466,7 @@ namespace recfun {
             obj_map<expr, ptr_vector<expr>> parents;
             expr_ref tmp(e, m());
             parents.insert(e, ptr_vector<expr>());
-            for (expr* t : subterms(tmp)) {
+            for (expr* t : subterms::ground(tmp)) {
                 if (is_app(t)) {
                     for (expr* arg : *to_app(t)) {
                         parents.insert_if_not_there(arg, ptr_vector<expr>()).push_back(t);        
@@ -505,10 +519,10 @@ namespace recfun {
                 }
                                 
                 symbol fresh_name("fold-rec-" + std::to_string(m().mk_fresh_id())); 
-                auto pd = mk_def(fresh_name, n, domain.c_ptr(), max_expr->get_sort());
+                auto pd = mk_def(fresh_name, n, domain.data(), max_expr->get_sort());
                 func_decl* f = pd.get_def()->get_decl();
-                expr_ref new_body(m().mk_app(f, n, args.c_ptr()), m());
-                set_definition(subst, pd, n, vars, max_expr);
+                expr_ref new_body(m().mk_app(f, n, args.data()), m());
+                set_definition(subst, pd, false, n, vars, max_expr);
                 subst.reset();
                 subst.insert(max_expr, new_body);
                 result = subst(result);                
@@ -516,7 +530,6 @@ namespace recfun {
             }
             return result;
         }
-
     }
 
     case_expansion::case_expansion(recfun::util& u, app * n) : 

@@ -50,7 +50,7 @@ namespace smt {
         n->m_lbl_hash         = -1;
         n->m_proof_is_logged = false;
         unsigned num_args     = n->get_num_args();
-        for (unsigned i = 0; i < num_args; i++) {
+        for (unsigned i = 0; i < num_args; i++) {            
             enode * arg  = app2enode[owner->get_arg(i)->get_id()];
             n->m_args[i] = arg;
             SASSERT(n->get_arg(i) == arg);
@@ -277,7 +277,7 @@ namespace smt {
 
     bool congruent(enode * n1, enode * n2, bool & comm) {
         comm          = false;
-        if (n1->get_owner()->get_decl() != n2->get_owner()->get_decl())
+        if (n1->get_expr()->get_decl() != n2->get_expr()->get_decl())
             return false;
         unsigned num_args = n1->get_num_args();
         if (num_args != n2->get_num_args())

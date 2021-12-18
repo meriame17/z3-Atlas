@@ -194,7 +194,7 @@ namespace smt {
                     break;
                 }
             }
-            else if (e_internalized(k) && m.are_distinct(v, get_enode(k)->get_root()->get_owner())) {
+            else if (e_internalized(k) && m.are_distinct(v, get_enode(k)->get_root()->get_expr())) {
                 to_delete.push_back(k);
             }
             else if (get_assignment(mk_diseq(k, v)) == l_true) {
@@ -244,8 +244,8 @@ namespace smt {
 
                 literal lit = mk_diseq(k, v);
                 literals.push_back(lit);
-                mk_clause(literals.size(), literals.c_ptr(), nullptr);
-                TRACE("context", display_literals_verbose(tout, literals.size(), literals.c_ptr()););
+                mk_clause(literals.size(), literals.data(), nullptr);
+                TRACE("context", display_literals_verbose(tout, literals.size(), literals.data()););
             }
         }    
         for (expr* e : to_delete) {
@@ -330,7 +330,7 @@ namespace smt {
             m_assumption2orig.insert(lit.var(), a);
         }
 
-        lbool is_sat = check(assumptions.size(), assumptions.c_ptr());
+        lbool is_sat = check(assumptions.size(), assumptions.data());
 
         if (is_sat != l_true) {
             TRACE("context", tout << is_sat << "\n";);
@@ -385,10 +385,10 @@ namespace smt {
                 expr* e = kv.m_key;
                 expr* val = kv.m_value;
                 literal lit = mk_diseq(e, val);
-                mark_as_relevant(lit);
                 if (get_assignment(lit) != l_undef) {
                     continue;
                 }
+                mark_as_relevant(lit);
                 ++num_vars;
                 push_scope();
                 assign(lit, b_justification::mk_axiom(), true);

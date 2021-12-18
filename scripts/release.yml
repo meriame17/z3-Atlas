@@ -6,7 +6,7 @@
 trigger: none
 
 variables:
-  ReleaseVersion: '4.8.11'
+  ReleaseVersion: '4.8.13'
 
 stages:
 
@@ -72,13 +72,48 @@ stages:
         artifactName: 'UbuntuBuild'
         targetPath: $(Build.ArtifactStagingDirectory)
 
+
+  - job: UbuntuDoc
+    displayName: "Ubuntu Doc build"
+    pool:
+      vmImage: "Ubuntu-latest"
+    steps:
+    - script: sudo apt-get install ocaml opam libgmp-dev
+    - script: opam init -y
+    - script: eval `opam config env`; opam install zarith ocamlfind -y
+    - script: eval `opam config env`; python scripts/mk_make.py --ml
+    - script: sudo apt-get install doxygen
+    - script: sudo apt-get install graphviz
+    - script: |
+        set -e
+        cd build
+        eval `opam config env` 
+        make -j3
+        make -j3 examples
+        make -j3 test-z3
+        cd ..
+    - script: |
+        set -e
+        eval `opam config env` 
+        cd doc
+        python mk_api_doc.py --mld --z3py-package-path=../build/python/z3
+        mkdir api/html/ml
+        ocamldoc -html -d api/html/ml -sort -hide Z3 -I $( ocamlfind query zarith ) -I ../build/api/ml ../build/api/ml/z3enums.mli ../build/api/ml/z3.mli
+        cd ..
+    - script: zip -r z3doc.zip doc/api
+    - script: cp z3doc.zip $(Build.ArtifactStagingDirectory)/.
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: 'UbuntuDoc'
+        targetPath: $(Build.ArtifactStagingDirectory)
+
   - job: ManyLinuxBuild
     displayName: "ManyLinux build"
     pool:
       vmImage: "ubuntu-latest"
     container: "quay.io/pypa/manylinux2010_x86_64:latest"
     variables:
-      python: "/opt/python/cp35-cp35m/bin/python"
+      python: "/opt/python/cp37-cp37m/bin/python"
     steps:
     - task: PythonScript@0
       displayName: Build
@@ -136,6 +171,10 @@ stages:
       inputs:
         artifact: 'WindowsBuild-x64'
         path: $(Agent.TempDirectory)\package
+      displayName: 'Download Win32 Build'
+      inputs:
+        artifact: 'WindowsBuild-x86'
+        path: $(Agent.TempDirectory)\package
     - task: DownloadPipelineArtifact@2
       displayName: 'Download Ubuntu Build'
       inputs:
@@ -172,7 +211,7 @@ stages:
     - task: EsrpCodeSigning@1
       displayName: 'Sign Package'
       inputs:
-        ConnectedServiceName: 'z3-esrp-signing'
+        ConnectedServiceName: 'z3-esrp-signing-2'
         FolderPath: $(Build.ArtifactStagingDirectory)
         Pattern: Microsoft.Z3.$(ReleaseVersion).nupkg
         signConfigType: 'inlineSignParams'
@@ -199,7 +238,7 @@ stages:
     - task: EsrpCodeSigning@1
       displayName: 'Sign Symbol Package'
       inputs:
-        ConnectedServiceName: 'z3-esrp-signing'
+        ConnectedServiceName: 'z3-esrp-signing-2'
         FolderPath: $(Build.ArtifactStagingDirectory)
         Pattern: Microsoft.Z3.$(ReleaseVersion).snupkg
         signConfigType: 'inlineSignParams'
@@ -254,7 +293,7 @@ stages:
         artifact: 'WindowsBuild-x64'
         path: $(Agent.TempDirectory)
     - script: cd $(Agent.TempDirectory); mkdir osx-bin; cd osx-bin; unzip ../*osx*.zip
-    - script: cd $(Agent.TempDirectory); mkdir linux-bin; cd linux-bin; unzip ../*centos*.zip
+    - script: cd $(Agent.TempDirectory); mkdir linux-bin; cd linux-bin; unzip ../*glibc*.zip
     - script: cd $(Agent.TempDirectory); mkdir win32-bin; cd win32-bin; unzip ../*x86-win*.zip
     - script: cd $(Agent.TempDirectory); mkdir win64-bin; cd win64-bin; unzip ../*x64-win*.zip
     - script: python3 -m pip install --user -U setuptools wheel
@@ -274,6 +313,7 @@ stages:
   jobs:
 
   - job: GitHubPublish
+    condition: eq(0,1)
     displayName: "Publish to GitHub"
     pool:
       vmImage: "windows-latest"
@@ -282,6 +322,11 @@ stages:
       displayName: 'Download Ubuntu Build'
       inputs:
         artifact: 'UbuntuBuild'
+        path: $(Agent.TempDirectory)
+    - task: DownloadPipelineArtifact@2
+      displayName: "Download Doc"
+      inputs:
+        artifact: 'UbuntuDoc'
         path: $(Agent.TempDirectory)
     - task: DownloadPipelineArtifact@2
       displayName: 'Download macOS Build'
@@ -307,7 +352,7 @@ stages:
       displayName: 'Download NuGet Package'
       inputs:
         artifact: 'NuGetPackage'
-        path: $(Agent.TempDirectory)
+        path: $(Agent.TempDirectory)	
     - task: GitHubRelease@0
       inputs:
         gitHubConnection: Z3GitHub
@@ -323,9 +368,9 @@ stages:
         isDraft: true
         isPreRelease: false
 
-  # Enable on release:
+  # Enable on release (after fixing Nuget key)
   - job: NuGetPublish
-    condition: eq(0,1)
+    condition: eq(1,0)
     displayName: "Publish to NuGet.org"
     steps:
     - task: DownloadPipelineArtifact@2
@@ -346,7 +391,7 @@ stages:
 
   # Enable on release:
   - job: PyPIPublish
-    condition: eq(0,1)
+    condition: eq(1,1)
     displayName: "Publish to PyPI"
     pool:
       vmImage: "ubuntu-latest"
@@ -356,9 +401,9 @@ stages:
         artifact: 'PythonPackage'
         path: dist
     - task: DownloadSecureFile@1
-      name: pypirc
+      name: pypircs
       inputs:
-        secureFile: 'pypirc'
+        secureFile: 'pypircs'
     - script: python3 -m pip install --upgrade pip
     - script: python3 -m pip install --user -U setuptools importlib_metadata wheel twine 
-    - script: python3 -m twine upload --config-file $(pypirc.secureFilePath) -r $(pypiReleaseServer) dist/*
+    - script: python3 -m twine upload --config-file $(pypircs.secureFilePath) -r $(pypiReleaseServer) dist/*

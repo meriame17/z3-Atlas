@@ -77,12 +77,12 @@ namespace recfun {
 
         app_ref apply_case_predicate(expr_ref_vector const & args) const {
             ast_manager& m = m_pred.get_manager();
-            return app_ref(m.mk_app(m_pred, args.size(), args.c_ptr()), m);
+            return app_ref(m.mk_app(m_pred, args.size(), args.data()), m);
         }
 
         def * get_def() const { return m_def; }
         expr_ref_vector const & get_guards() const { return m_guards; }
-        expr * get_guards_c_ptr() const { return *m_guards.c_ptr(); }
+        expr * get_guards_c_ptr() const { return *m_guards.data(); }
         expr * get_guard(unsigned i) const { return m_guards[i]; }
         expr * get_rhs() const { return m_rhs; }
         unsigned num_guards() const { return m_guards.size(); }
@@ -93,6 +93,7 @@ namespace recfun {
     // closure for computing whether a `rhs` expression is immediate
     struct is_immediate_pred {
         virtual bool operator()(expr * rhs) = 0;
+        virtual ~is_immediate_pred() = default;
     };
 
     class def {
@@ -114,7 +115,7 @@ namespace recfun {
 
         // compute cases for a function, given its RHS (possibly containing `ite`).
         void compute_cases(util& u, replace& subst, is_immediate_pred &, 
-                           unsigned n_vars, var *const * vars, expr* rhs);
+                           bool is_macro, unsigned n_vars, var *const * vars, expr* rhs);
         void add_case(std::string & name, unsigned case_index, expr_ref_vector const& conditions, expr* rhs, bool is_imm = false);
         bool contains_ite(util& u, expr* e); // expression contains a test over a def?
         bool contains_def(util& u, expr* e); // expression contains a def
@@ -138,7 +139,7 @@ namespace recfun {
         friend class util;
         util * u;
         def * d;
-        void set_definition(replace& r, unsigned n_vars, var * const * vars, expr * rhs); // call only once
+        void set_definition(replace& r, bool is_macro, unsigned n_vars, var * const * vars, expr * rhs); // call only once
     public:
         promise_def(util * u, def * d) : u(u), d(d) {}
         promise_def(promise_def const & from) : u(from.u), d(from.d) {}
@@ -182,9 +183,11 @@ namespace recfun {
 
             promise_def ensure_def(symbol const& name, unsigned n, sort *const * params, sort * range, bool is_generated = false);
             
-            void set_definition(replace& r, promise_def & d, unsigned n_vars, var * const * vars, expr * rhs);
+            void set_definition(replace& r, promise_def & d, bool is_macro, unsigned n_vars, var * const * vars, expr * rhs);
             
-            def* mk_def(replace& subst, symbol const& name, unsigned n, sort ** params, sort * range, unsigned n_vars, var ** vars, expr * rhs);
+            def* mk_def(replace& subst, bool is_macro, symbol const& name, unsigned n, sort ** params, sort * range, unsigned n_vars, var ** vars, expr * rhs);
+
+            void erase_def(func_decl* f);
 
             bool has_def(func_decl* f) const { return m_defs.contains(f); }
             bool has_defs() const;
@@ -214,7 +217,7 @@ namespace recfun {
         decl::plugin *          m_plugin;
 
         bool compute_is_immediate(expr * rhs);
-        void set_definition(replace& r, promise_def & d, unsigned n_vars, var * const * vars, expr * rhs);
+        void set_definition(replace& r, promise_def & d, bool is_macro, unsigned n_vars, var * const * vars, expr * rhs);
 
     public:
         util(ast_manager &m);
@@ -256,11 +259,11 @@ namespace recfun {
         }
 
         app* mk_fun_defined(def const & d, ptr_vector<expr> const & args) {
-            return mk_fun_defined(d, args.size(), args.c_ptr());
+            return mk_fun_defined(d, args.size(), args.data());
         }
 
         app* mk_fun_defined(def const & d, expr_ref_vector const & args) {
-            return mk_fun_defined(d, args.size(), args.c_ptr());
+            return mk_fun_defined(d, args.size(), args.data());
         }
 
         func_decl_ref_vector get_rec_funs() {
@@ -302,7 +305,7 @@ namespace recfun {
             m_pred(pred), m_cdef(&d), m_args(args) {}
         body_expansion(body_expansion const & from): 
             m_pred(from.m_pred), m_cdef(from.m_cdef), m_args(from.m_args) {}
-        body_expansion(body_expansion && from) : 
+        body_expansion(body_expansion && from) noexcept :
             m_pred(from.m_pred), m_cdef(from.m_cdef), m_args(std::move(from.m_args)) {}
 
         std::ostream& display(std::ostream& out) const;

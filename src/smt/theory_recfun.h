@@ -18,6 +18,7 @@ Revision History:
 --*/
 #pragma once
 
+#include "util/scoped_ptr_vector.h"
 #include "smt/smt_theory.h"
 #include "smt/smt_context.h"
 #include "ast/ast_pp.h"
@@ -63,8 +64,8 @@ namespace smt {
         bool is_defined(app * f) const { return u().is_defined(f); }
         bool is_case_pred(app * f) const { return u().is_case_pred(f); }
 
-        bool is_defined(enode * e) const { return is_defined(e->get_owner()); }
-        bool is_case_pred(enode * e) const { return is_case_pred(e->get_owner()); }
+        bool is_defined(enode * e) const { return is_defined(e->get_expr()); }
+        bool is_case_pred(enode * e) const { return is_case_pred(e->get_expr()); }
 
         void activate_guard(expr* guard, expr_ref_vector const& guards);
 

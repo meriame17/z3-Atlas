@@ -128,7 +128,7 @@ namespace smt {
         }
 
         bool is_true(expr* e) { return is_true(ctx().get_literal(e)); }
-        bool is_true(enode* e) { return is_true(e->get_owner()); }
+        bool is_true(enode* e) { return is_true(e->get_expr()); }
         bool is_true(literal l) { return ctx().is_relevant(l) && ctx().get_assignment(l) == l_true; }
         bool is_leaf(sz_info& i) const { return i.m_is_leaf; }
         bool is_leaf(sz_info* i) const { return is_leaf(*i); }
@@ -167,7 +167,7 @@ namespace smt {
                     for (enode* parent : enode::parents(set)) {
                         if (is_select(parent) && parent->get_arg(0)->get_root() == set) {
                             if (is_true(parent)) {
-                                v.m_selects.insert(parent->get_arg(1)->get_root(), parent->get_owner());
+                                v.m_selects.insert(parent->get_arg(1)->get_root(), parent->get_expr());
                             }
                         }
                     }                    
@@ -424,19 +424,19 @@ namespace smt {
                 if (info.m_selects.size() > 1) {
                     ptr_vector<expr> args;
                     for (auto const& kv : info.m_selects) {
-                        args.push_back(kv.m_key->get_owner());
+                        args.push_back(kv.m_key->get_expr());
                     }
                     if (info.m_selects.size() == 2) {
                         lits.push_back(mk_eq(args[0], args[1]));
                     }
                     else {
-                        expr_ref diff(m.mk_distinct_expanded(args.size(), args.c_ptr()), m);
+                        expr_ref diff(m.mk_distinct_expanded(args.size(), args.data()), m);
                         lits.push_back(~mk_literal(diff));
                     }
                 }
                 expr_ref ge(m_arith.mk_ge(sz->get_arg(1), m_arith.mk_int(info.m_selects.size())), m);
                 lits.push_back(mk_literal(ge));
-                mk_th_axiom(lits.size(), lits.c_ptr());
+                mk_th_axiom(lits.size(), lits.data());
                 return l_false;
             }
             return l_true;

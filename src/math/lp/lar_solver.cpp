@@ -1,4 +1,6 @@
 #include "math/lp/lar_solver.h"
+#include "smt/params/smt_params_helper.hpp"
+
 /*
   Copyright (c) 2017 Microsoft Corporation
   Author: Nikolaj Bjorner, Lev Nachmanson
@@ -14,16 +16,19 @@ namespace lp {
 
     lp_settings const& lar_solver::settings() const { return m_settings; }
 
-    void clear() {
-        lp_assert(false); // not implemented
+    statistics& lar_solver::stats() { return m_settings.stats(); }
+
+
+    void lar_solver::updt_params(params_ref const& _p) {
+        smt_params_helper p(_p);
+        set_track_pivoted_rows(p.arith_bprop_on_pivoted_rows());
+        set_cut_strategy(p.arith_branch_cut_ratio());
+        m_settings.updt_params(_p);
     }
 
     lar_solver::lar_solver() :
-        m_status(lp_status::UNKNOWN),
         m_crossed_bounds_column(-1),
         m_mpq_lar_core_solver(m_settings, *this),
-        m_int_solver(nullptr),
-        m_need_register_terms(false),
         m_var_register(false),
         m_term_register(true),
         m_constraints(*this) {}
@@ -152,7 +157,7 @@ namespace lp {
                 continue;
             if (!m_terms[k]->contains(basis_j))
                 continue;
-            m_terms[k]->subst(basis_j, m_mpq_lar_core_solver.m_r_solver.m_pivot_row);
+            m_terms[k]->subst_in_row(basis_j, m_mpq_lar_core_solver.m_r_solver.m_pivot_row);
         }
     }
 
@@ -187,11 +192,11 @@ namespace lp {
     void lar_solver::set_status(lp_status s) { m_status = s; }
 
     lp_status lar_solver::find_feasible_solution() {
-        m_settings.stats().m_make_feasible++;
-        if (A_r().column_count() > m_settings.stats().m_max_cols)
-            m_settings.stats().m_max_cols = A_r().column_count();
-        if (A_r().row_count() > m_settings.stats().m_max_rows)
-            m_settings.stats().m_max_rows = A_r().row_count();
+        stats().m_make_feasible++;
+        if (A_r().column_count() > stats().m_max_cols)
+            stats().m_max_cols = A_r().column_count();
+        if (A_r().row_count() > stats().m_max_rows)
+            stats().m_max_rows = A_r().row_count();
         if (strategy_is_undecided())
             decide_on_strategy_and_adjust_initial_state();
 
@@ -238,7 +243,7 @@ namespace lp {
         m_constraints.push();
         m_usage_in_terms.push();
     }
-
+    
     void lar_solver::clean_popped_elements(unsigned n, u_set& set) {
         vector<int> to_remove;
         for (unsigned j : set)
@@ -259,9 +264,8 @@ namespace lp {
         m_crossed_bounds_column.pop(k);
         unsigned n = m_columns_to_ul_pairs.peek_size(k);
         m_var_register.shrink(n);
-        if (m_settings.use_tableau()) {
+        if (m_settings.use_tableau()) 
             pop_tableau();
-        }
         lp_assert(A_r().column_count() == n);
         TRACE("lar_solver_details",
             for (unsigned j = 0; j < n; j++) {
@@ -274,6 +278,10 @@ namespace lp {
         remove_non_fixed_from_fixed_var_table();
         clean_popped_elements(n, m_columns_with_changed_bounds);
         clean_popped_elements(n, m_incorrect_columns);
+
+        for (auto rid : m_row_bounds_to_replay)
+            insert_row_with_changed_bounds(rid);
+        m_row_bounds_to_replay.reset();
 
         unsigned m = A_r().row_count();
         clean_popped_elements(m, m_rows_with_changed_bounds);
@@ -337,7 +345,7 @@ namespace lp {
         auto& jset = m_mpq_lar_core_solver.m_r_solver.inf_set(); // hijack this set that should be empty right now
         lp_assert(jset.empty());
 
-        for (const auto& p : term) {
+        for (lar_term::ival p : term) {
             unsigned j = p.column();
             rslv.m_costs[j] = zero_of_type<mpq>();
             int i = rslv.m_basis_heading[j];
@@ -367,7 +375,7 @@ namespace lp {
         lp_assert(costs_are_zeros_for_r_solver());
         lp_assert(reduced_costs_are_zeroes_for_r_solver());
         rslv.m_costs.resize(A_r().column_count(), zero_of_type<mpq>());
-        for (const auto& p : term) {
+        for (lar_term::ival p : term) {
             unsigned j = p.column();
             rslv.m_costs[j] = p.coeff();
             if (rslv.m_basis_heading[j] < 0)
@@ -623,6 +631,9 @@ namespace lp {
                 left_side.push_back(std::make_pair(p.second, p.first));
     }
 
+    void lar_solver::insert_row_with_changed_bounds(unsigned rid) {
+        m_rows_with_changed_bounds.insert(rid);
+    }
 
     void lar_solver::detect_rows_of_bound_change_column_for_nbasic_column(unsigned j) {
         if (A_r().row_count() != m_column_buffer.data_size())
@@ -633,14 +644,14 @@ namespace lp {
 
         m_mpq_lar_core_solver.m_r_solver.solve_Bd(j, m_column_buffer);
         for (unsigned i : m_column_buffer.m_index)
-            m_rows_with_changed_bounds.insert(i);
+            insert_row_with_changed_bounds(i);
     }
 
 
 
     void lar_solver::detect_rows_of_bound_change_column_for_nbasic_column_tableau(unsigned j) {
         for (auto& rc : m_mpq_lar_core_solver.m_r_A.m_columns[j])
-            m_rows_with_changed_bounds.insert(rc.var());
+            insert_row_with_changed_bounds(rc.var());
     }
 
     bool lar_solver::use_tableau() const { return m_settings.use_tableau(); }
@@ -733,7 +744,7 @@ namespace lp {
 
     void lar_solver::detect_rows_with_changed_bounds_for_column(unsigned j) {
         if (m_mpq_lar_core_solver.m_r_heading[j] >= 0) {
-            m_rows_with_changed_bounds.insert(m_mpq_lar_core_solver.m_r_heading[j]);
+            insert_row_with_changed_bounds(m_mpq_lar_core_solver.m_r_heading[j]);
             return;
         }
 
@@ -783,10 +794,22 @@ namespace lp {
             update_x_and_inf_costs_for_columns_with_changed_bounds();
         m_mpq_lar_core_solver.solve();
         set_status(m_mpq_lar_core_solver.m_r_solver.get_status());
-        lp_assert(((m_settings.stats().m_make_feasible% 100) != 0) || m_status != lp_status::OPTIMAL || all_constraints_hold());
+        lp_assert(((stats().m_make_feasible% 100) != 0) || m_status != lp_status::OPTIMAL || all_constraints_hold());
     }
 
 
+    // this function just looks at the status    
+    bool lar_solver::is_feasible() const {
+        switch (this->get_status()) {
+        case lp_status::OPTIMAL:
+        case lp_status::FEASIBLE:
+        case lp_status::UNBOUNDED:
+            return true;
+        default:
+            return false;
+        }
+    }
+    
     numeric_pair<mpq> lar_solver::get_basic_var_value_from_row(unsigned i) {
         numeric_pair<mpq> r = zero_of_type<numeric_pair<mpq>>();
 
@@ -964,9 +987,7 @@ namespace lp {
 
     bool lar_solver::the_left_sides_sum_to_zero(const vector<std::pair<mpq, unsigned>>& evidence) const {
         std::unordered_map<var_index, mpq> coeff_map;
-        for (auto& it : evidence) {
-            mpq coeff = it.first;
-            constraint_index con_ind = it.second;
+        for (auto const & [coeff, con_ind] : evidence) {
             lp_assert(m_constraints.valid_index(con_ind));
             register_in_map(coeff_map, m_constraints[con_ind], coeff);
         }
@@ -1069,7 +1090,7 @@ namespace lp {
         if (tv::is_term(var)) {
             lar_term const& t = get_term(var);
             value = 0;
-            for (auto const& cv : t) {
+            for (lar_term::ival cv : t) {
                 impq const& r = get_column_value(cv.column());
                 if (!numeric_traits<mpq>::is_zero(r.y)) return false;
                 value += r.x * cv.coeff();
@@ -1185,7 +1206,7 @@ namespace lp {
             return get_value(column_index(term_j));
 #endif
         mpq r(0);
-        for (const auto& p : get_term(t)) 
+        for (lar_term::ival p : get_term(t)) 
             r += p.coeff() * get_value(p.column());
         return r;
     }
@@ -1194,7 +1215,7 @@ namespace lp {
         if (t.is_var())
             return get_column_value(t.column());
         impq r;
-        for (const auto& p : get_term(t)) 
+        for (lar_term::ival p : get_term(t)) 
             r += p.coeff() * get_column_value(p.column());
         return r;
     }
@@ -1241,6 +1262,15 @@ namespace lp {
     }
 
     // ********** print region start
+
+    std::ostream& lar_solver::display(std::ostream& out) const {
+        out << constraints();
+        print_terms(out);
+        pp(out).print();
+        for (unsigned j = 0; j < number_of_vars(); j++) 
+            print_column_info(j, out);
+        return out;
+    }
 
     std::ostream& lar_solver::print_terms(std::ostream& out) const {
         for (auto it : m_terms) {
@@ -1318,7 +1348,7 @@ namespace lp {
     void lar_solver::mark_rows_for_bound_prop(lpvar j) {
         auto& column = A_r().m_columns[j];
         for (auto const& r : column) 
-            m_rows_with_changed_bounds.insert(r.var());        
+            insert_row_with_changed_bounds(r.var());        
     }
 
 
@@ -1640,7 +1670,7 @@ namespace lp {
             m_mpq_lar_core_solver.m_r_heading.push_back(m_mpq_lar_core_solver.m_r_basis.size());
             m_mpq_lar_core_solver.m_r_basis.push_back(j);
             if (m_settings.bound_propagation())
-                m_rows_with_changed_bounds.insert(A_r().row_count() - 1);
+                insert_row_with_changed_bounds(A_r().row_count() - 1);
         }
         else {
             m_mpq_lar_core_solver.m_r_heading.push_back(-static_cast<int>(m_mpq_lar_core_solver.m_r_nbasis.size()) - 1);
@@ -1698,6 +1728,27 @@ namespace lp {
         return true;
     }
 
+    void lar_solver::subst_known_terms(lar_term* t) {
+        std::set<unsigned> seen_terms;
+        for (auto p : *t) {
+            auto j = p.column();
+            if (this->column_corresponds_to_term(j)) {
+                seen_terms.insert(j);
+            }
+        }
+        while (!seen_terms.empty()) {
+            unsigned j = *seen_terms.begin();
+            seen_terms.erase(j);
+            auto tj = this->m_var_register.local_to_external(j);
+            auto& ot = this->get_term(tj);
+            for (auto p : ot){
+                if (this->column_corresponds_to_term(p.column())) {
+                    seen_terms.insert(p.column());
+                }   
+            }
+            t->subst_by_term(ot, j);
+        }
+    }
     // do not register in m_var_register this term if ext_i == UINT_MAX
     var_index lar_solver::add_term(const vector<std::pair<mpq, var_index>>& coeffs, unsigned ext_i) {
         TRACE("lar_solver_terms", print_linear_combination_of_column_indices_only(coeffs, tout) << ", ext_i =" << ext_i << "\n";);
@@ -1707,6 +1758,7 @@ namespace lp {
         if (strategy_is_undecided())
             return add_term_undecided(coeffs);
         lar_term* t = new lar_term(coeffs);
+        subst_known_terms(t);
         push_term(t);
         SASSERT(m_terms.size() == m_term_register.size());
         unsigned adjusted_term_index = m_terms.size() - 1;
@@ -1714,7 +1766,7 @@ namespace lp {
         if (use_tableau() && !coeffs.empty()) {
             add_row_from_term_no_constraint(m_terms.back(), ret);
             if (m_settings.bound_propagation())
-                m_rows_with_changed_bounds.insert(A_r().row_count() - 1);
+                insert_row_with_changed_bounds(A_r().row_count() - 1);
         }
         lp_assert(m_var_register.size() == A_r().column_count());
         if (m_need_register_terms) {
@@ -1744,7 +1796,7 @@ namespace lp {
         m_mpq_lar_core_solver.m_r_solver.update_x(j, get_basic_var_value_from_row(A_r().row_count() - 1));
         if (use_lu())
             fill_last_row_of_A_d(A_d(), term);
-        for (const auto& c : *term) {
+        for (lar_term::ival c : *term) {
             unsigned j = c.column();
             while (m_usage_in_terms.size() <= j) {
                 m_usage_in_terms.push_back(0);
@@ -2312,21 +2364,22 @@ namespace lp {
                 v = flv;
             }
             m_incorrect_columns.insert(j);
-            TRACE("cube", tout << "new val = " << v << "\n";);
+            TRACE("cube", tout << "new val = " << v << " column: " << j << "\n";);
         }
-        if (m_incorrect_columns.size()) {
+        if (!m_incorrect_columns.empty()) {
             fix_terms_with_rounded_columns();
             m_incorrect_columns.clear();
         }
     }
 
     void lar_solver::fix_terms_with_rounded_columns() {
+
         for (unsigned i = 0; i < m_terms.size(); i++) {
             if (!term_is_used_as_row(i))
                 continue;
             bool need_to_fix = false;
             const lar_term& t = *m_terms[i];
-            for (const auto& p : t) {
+            for (lar_term::ival p : t) {
                 if (m_incorrect_columns.contains(p.column())) {
                     need_to_fix = true;
                     break;
@@ -2338,12 +2391,14 @@ namespace lp {
                 m_mpq_lar_core_solver.m_r_solver.update_x(j, v);
             }
         }
+
         SASSERT(ax_is_correct());
     }
+
     // return true if all y coords are zeroes
     bool lar_solver::sum_first_coords(const lar_term& t, mpq& val) const {
         val = zero_of_type<mpq>();
-        for (const auto& c : t) {
+        for (lar_term::ival c : t) {
             const auto& x = m_mpq_lar_core_solver.m_r_x[c.column()];
             if (!is_zero(x.y))
                 return false;

@@ -33,13 +33,15 @@ enum char_sort_kind {
 enum char_op_kind {
     OP_CHAR_CONST,
     OP_CHAR_LE,
-    OP_CHAR_TO_INT
+    OP_CHAR_TO_INT,
+    OP_CHAR_TO_BV,
+    OP_CHAR_FROM_BV,
+    OP_CHAR_IS_DIGIT
 };
 
 class char_decl_plugin : public decl_plugin {
     sort* m_char { nullptr };
     symbol m_charc_sym;
-    bool m_unicode { true };
 
     void set_manager(ast_manager * m, family_id id) override;
 
@@ -79,6 +81,8 @@ public:
 
     app* mk_to_int(expr* a) { return m_manager->mk_app(m_family_id, OP_CHAR_TO_INT, 1, &a); }
 
+    app* mk_is_digit(expr* a) { return m_manager->mk_app(m_family_id, OP_CHAR_IS_DIGIT, 1, &a); }
+
     bool is_le(expr const* e) const { return is_app_of(e, m_family_id, OP_CHAR_LE); }
 
     bool is_const_char(expr const* e, unsigned& c) const { 
@@ -87,8 +91,19 @@ public:
 
     bool is_to_int(expr const* e) const { return is_app_of(e, m_family_id, OP_CHAR_TO_INT); }
 
-    bool unicode() const { return m_unicode; }
-    unsigned max_char() const { return m_unicode ? zstring::unicode_max_char() : zstring::ascii_max_char(); }
-    unsigned num_bits() const { return m_unicode ? zstring::unicode_num_bits() : zstring::ascii_num_bits(); }
+    bool is_is_digit(expr const* e) const { return is_app_of(e, m_family_id, OP_CHAR_IS_DIGIT); }
 
+    bool is_char2bv(expr const* e) const { return is_app_of(e, m_family_id, OP_CHAR_TO_BV); }
+    
+    bool is_bv2char(expr const* e) const { return is_app_of(e, m_family_id, OP_CHAR_FROM_BV); }
+
+    MATCH_UNARY(is_is_digit);
+    MATCH_UNARY(is_to_int);
+    MATCH_UNARY(is_char2bv);
+    MATCH_UNARY(is_bv2char);
+    MATCH_BINARY(is_le);
+
+    static unsigned max_char() { return zstring::max_char(); }
+
+    static unsigned num_bits() { return zstring::num_bits(); }
 };

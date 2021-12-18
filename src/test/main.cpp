@@ -215,6 +215,7 @@ int main(int argc, char ** argv) {
     TST(prime_generator);
     TST(permutation);
     TST(nlsat);
+    TST(zstring);
     if (test_all) return 0;
     TST(ext_numeral);
     TST(interval);
@@ -258,6 +259,7 @@ int main(int argc, char ** argv) {
     TST(bdd);
     TST(pdd);
     TST(pdd_solver);
+    TST(scoped_timer);
     TST(solver_pool);
     //TST_ARGV(hs);
     TST(finder);

@@ -2,7 +2,6 @@ z3_add_component(smt
   SOURCES
     arith_eq_adapter.cpp
     arith_eq_solver.cpp
-    asserted_formulas.cpp
     dyn_ack.cpp
     expr_context_simplifier.cpp
     fingerprints.cpp
@@ -31,7 +30,6 @@ z3_add_component(smt
     smt_farkas_util.cpp
     smt_for_each_relevant_expr.cpp
     smt_implied_equalities.cpp
-    smt_induction.cpp
     smt_internalizer.cpp
     smt_justification.cpp
     smt_kernel.cpp
@@ -72,13 +70,14 @@ z3_add_component(smt
     theory_str.cpp
     theory_str_mc.cpp
     theory_str_regex.cpp
+    theory_user_propagator.cpp
     theory_utvpi.cpp
     theory_wmaxsat.cpp
-    user_propagator.cpp
     uses_theory.cpp
     watch_list.cpp
     theory_atlas/theory_atlas.cpp
   COMPONENT_DEPENDENCIES
+    solver_assertions
     bit_blaster
     cmd_context
     fpa

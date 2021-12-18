@@ -44,7 +44,7 @@ struct dl_context {
     unsigned                      m_ref_count;
     datalog::dl_decl_plugin*      m_decl_plugin;
     scoped_ptr<datalog::context>  m_context;
-    trail_stack<dl_context>       m_trail;
+    trail_stack                   m_trail;
 
     fp_params const& get_params() {
         init();
@@ -57,7 +57,7 @@ struct dl_context {
         m_collected_cmds(collected_cmds),
         m_ref_count(0),
         m_decl_plugin(nullptr),
-        m_trail(*this) {}
+        m_trail() {}
 
     void inc_ref() {
         ++m_ref_count;
@@ -127,7 +127,7 @@ struct dl_context {
             for (unsigned i = 0; i < q->get_arity(); ++i) {
                 args.push_back(m.mk_var(i, q->get_domain(i)));
             }
-            qr = m.mk_app(q, args.size(), args.c_ptr());
+            qr = m.mk_app(q, args.size(), args.data());
             qr = m_context->bind_vars(qr, false);
             m_collected_cmds->m_queries.push_back(qr);
             m_trail.push(push_back_vector<expr_ref_vector>(m_collected_cmds->m_queries));
@@ -427,9 +427,9 @@ public:
         ast_manager& m = ctx.m();
 
         func_decl_ref pred(
-            m.mk_func_decl(m_rel_name, m_domain.size(), m_domain.c_ptr(), m.mk_bool_sort()), m);
+            m.mk_func_decl(m_rel_name, m_domain.size(), m_domain.data(), m.mk_bool_sort()), m);
         ctx.insert(pred);
-        m_dl_ctx->register_predicate(pred, m_kinds.size(), m_kinds.c_ptr());
+        m_dl_ctx->register_predicate(pred, m_kinds.size(), m_kinds.data());
     }
 
 };

@@ -33,11 +33,9 @@ Revision History:
 #include "smt/smt_statistics.h"
 #include "smt/smt_conflict_resolution.h"
 #include "smt/smt_relevancy.h"
-#include "smt/smt_induction.h"
 #include "smt/smt_case_split_queue.h"
 #include "smt/smt_almost_cg_table.h"
 #include "smt/smt_failure.h"
-#include "smt/asserted_formulas.h"
 #include "smt/smt_types.h"
 #include "smt/dyn_ack.h"
 #include "ast/ast_smt_pp.h"
@@ -48,9 +46,10 @@ Revision History:
 #include "util/statistics.h"
 #include "smt/fingerprints.h"
 #include "smt/proto_model/proto_model.h"
-#include "smt/user_propagator.h"
+#include "smt/theory_user_propagator.h"
 #include "model/model.h"
 #include "solver/progress_callback.h"
+#include "solver/assertions/asserted_formulas.h"
 #include <tuple>
 
 // there is a significant space overhead with allocating 1000+ contexts in
@@ -89,7 +88,7 @@ namespace smt {
         scoped_ptr<quantifier_manager>   m_qmanager;
         scoped_ptr<model_generator>      m_model_generator;
         scoped_ptr<relevancy_propagator> m_relevancy_propagator;
-        user_propagator*            m_user_propagator;
+        theory_user_propagator*          m_user_propagator;
         random_gen                  m_random;
         bool                        m_flushing; // (debug support) true when flushing
         mutable unsigned            m_lemma_id;
@@ -184,7 +183,6 @@ namespace smt {
         unsigned                    m_simp_qhead { 0 };
         int                         m_simp_counter { 0 }; //!< can become negative
         scoped_ptr<case_split_queue> m_case_split_queue;
-        scoped_ptr<induction>       m_induction;
         double                      m_bvar_inc { 1.0 };
         bool                        m_phase_cache_on { true };
         unsigned                    m_phase_counter { 0 }; //!< auxiliary variable used to decide when to turn on/off phase caching
@@ -281,6 +279,9 @@ namespace smt {
             return m_app2enode[n->get_id()];
         }
 
+        void get_specrels(func_decl_set& rels) const;
+
+
         /**
            \brief Similar to get_enode, but returns 0 if n is to e_internalized.
         */
@@ -297,7 +298,7 @@ namespace smt {
         }
 
         bool_var get_bool_var(enode const * n) const {
-            return get_bool_var(n->get_owner());
+            return get_bool_var(n->get_expr());
         }
 
         bool_var get_bool_var_of_id(unsigned id) const {
@@ -910,7 +911,7 @@ namespace smt {
         void mk_th_axiom(theory_id tid, literal l1, literal l2, literal l3, unsigned num_params = 0, parameter * params = nullptr);
 
         void mk_th_axiom(theory_id tid, literal_vector const& ls, unsigned num_params = 0, parameter * params = nullptr) {
-            mk_th_axiom(tid, ls.size(), ls.c_ptr(), num_params, params);
+            mk_th_axiom(tid, ls.size(), ls.data(), num_params, params);
         }
 
         void mk_th_lemma(theory_id tid, literal l1, literal l2, unsigned num_params = 0, parameter * params = nullptr) {
@@ -928,7 +929,7 @@ namespace smt {
         }
 
         void mk_th_lemma(theory_id tid, literal_vector const& ls, unsigned num_params = 0, parameter * params = nullptr) {
-            mk_th_lemma(tid, ls.size(), ls.c_ptr(), num_params, params);
+            mk_th_lemma(tid, ls.size(), ls.data(), num_params, params);
         }
 
         /*
@@ -1084,7 +1085,7 @@ namespace smt {
 
         void push_eq(enode * lhs, enode * rhs, eq_justification const & js) {
             if (lhs->get_root() != rhs->get_root()) {
-                SASSERT(lhs->get_owner()->get_sort() == rhs->get_owner()->get_sort());
+                SASSERT(lhs->get_expr()->get_sort() == rhs->get_expr()->get_sort());
                 m_eq_propagation_queue.push_back(new_eq(lhs, rhs, js));
             }
         }
@@ -1191,7 +1192,6 @@ namespace smt {
 
         bool more_than_k_unassigned_literals(clause * cls, unsigned k);
 
-        void internalize_assertions();
 
         void asserted_inconsistent();
 
@@ -1269,7 +1269,7 @@ namespace smt {
         }
 
         bool is_relevant(enode * n) const {
-            return is_relevant(n->get_owner());
+            return is_relevant(n->get_expr());
         }
 
         bool is_relevant(bool_var v) const {
@@ -1287,7 +1287,7 @@ namespace smt {
 
         void mark_as_relevant(expr * n) { m_relevancy_propagator->mark_as_relevant(n); m_relevancy_propagator->propagate(); }
 
-        void mark_as_relevant(enode * n) { mark_as_relevant(n->get_owner()); }
+        void mark_as_relevant(enode * n) { mark_as_relevant(n->get_expr()); }
 
         void mark_as_relevant(bool_var v) { mark_as_relevant(bool_var2expr(v)); }
 
@@ -1323,7 +1323,6 @@ namespace smt {
     public:
         bool can_propagate() const;
 
-        induction& get_induction(); 
 
         // Retrieve arithmetic values. 
         bool get_arith_lo(expr* e, rational& lo, bool& strict);
@@ -1357,14 +1356,14 @@ namespace smt {
 
         std::ostream& display_literal(std::ostream & out, literal l) const;
 
-        std::ostream& display_detailed_literal(std::ostream & out, literal l) const { l.display(out, m, m_bool_var2expr.c_ptr()); return out; }
+        std::ostream& display_detailed_literal(std::ostream & out, literal l) const { return smt::display(out, l, m, m_bool_var2expr.data()); }
 
         void display_literal_info(std::ostream & out, literal l) const;
 
         std::ostream& display_literals(std::ostream & out, unsigned num_lits, literal const * lits) const;
 
         std::ostream& display_literals(std::ostream & out, literal_vector const& lits) const {
-            return display_literals(out, lits.size(), lits.c_ptr());
+            return display_literals(out, lits.size(), lits.data());
         }
 
         std::ostream& display_literal_smt2(std::ostream& out, literal lit) const;
@@ -1373,14 +1372,14 @@ namespace smt {
 
         std::ostream& display_literals_smt2(std::ostream& out, unsigned num_lits, literal const* lits) const;
 
-        std::ostream& display_literals_smt2(std::ostream& out, literal_vector const& ls) const { return display_literals_smt2(out, ls.size(), ls.c_ptr()); }
+        std::ostream& display_literals_smt2(std::ostream& out, literal_vector const& ls) const { return display_literals_smt2(out, ls.size(), ls.data()); }
 
         std::ostream& display_literal_verbose(std::ostream & out, literal lit) const;
 
         std::ostream& display_literals_verbose(std::ostream & out, unsigned num_lits, literal const * lits) const;
         
         std::ostream& display_literals_verbose(std::ostream & out, literal_vector const& lits) const {
-            return display_literals_verbose(out, lits.size(), lits.c_ptr());
+            return display_literals_verbose(out, lits.size(), lits.data());
         }
 
         void display_watch_list(std::ostream & out, literal l) const;
@@ -1609,6 +1608,8 @@ namespace smt {
 
         void assert_expr(expr * e, proof * pr);
 
+        void internalize_assertions();
+
         void push();
 
         void pop(unsigned num_scopes);
@@ -1694,29 +1695,29 @@ namespace smt {
          */
         void user_propagate_init(
             void*                 ctx, 
-            solver::push_eh_t&    push_eh,
-            solver::pop_eh_t&     pop_eh,
-            solver::fresh_eh_t&   fresh_eh);
+            user_propagator::push_eh_t&    push_eh,
+            user_propagator::pop_eh_t&     pop_eh,
+            user_propagator::fresh_eh_t&   fresh_eh);
 
-        void user_propagate_register_final(solver::final_eh_t& final_eh) {
+        void user_propagate_register_final(user_propagator::final_eh_t& final_eh) {
             if (!m_user_propagator) 
                 throw default_exception("user propagator must be initialized");
             m_user_propagator->register_final(final_eh);
         }
 
-        void user_propagate_register_fixed(solver::fixed_eh_t& fixed_eh) {
+        void user_propagate_register_fixed(user_propagator::fixed_eh_t& fixed_eh) {
             if (!m_user_propagator) 
                 throw default_exception("user propagator must be initialized");
             m_user_propagator->register_fixed(fixed_eh);
         }
         
-        void user_propagate_register_eq(solver::eq_eh_t& eq_eh) {
+        void user_propagate_register_eq(user_propagator::eq_eh_t& eq_eh) {
             if (!m_user_propagator) 
                 throw default_exception("user propagator must be initialized");
             m_user_propagator->register_eq(eq_eh);
         }
         
-        void user_propagate_register_diseq(solver::eq_eh_t& diseq_eh) {
+        void user_propagate_register_diseq(user_propagator::eq_eh_t& diseq_eh) {
             if (!m_user_propagator) 
                 throw default_exception("user propagator must be initialized");
             m_user_propagator->register_diseq(diseq_eh);
@@ -1727,13 +1728,25 @@ namespace smt {
                 throw default_exception("user propagator must be initialized");
             return m_user_propagator->add_expr(e);
         }
+
+        void user_propagate_register_created(user_propagator::created_eh_t& r) {
+            if (!m_user_propagator)
+                throw default_exception("user propagator must be initialized");
+            m_user_propagator->register_created(r);
+        }
+
+        func_decl* user_propagate_declare(symbol const& name, unsigned n, sort* const* domain, sort* range) {
+            if (!m_user_propagator)
+                throw default_exception("user propagator must be initialized");
+            return m_user_propagator->declare(name, n, domain, range);
+        }
         
         bool watches_fixed(enode* n) const;
 
         void assign_fixed(enode* n, expr* val, unsigned sz, literal const* explain);
 
         void assign_fixed(enode* n, expr* val, literal_vector const& explain) {
-            assign_fixed(n, val, explain.size(), explain.c_ptr());
+            assign_fixed(n, val, explain.size(), explain.data());
         }
 
         void assign_fixed(enode* n, expr* val, literal explain) {
@@ -1778,7 +1791,7 @@ namespace smt {
         literal const *lits;
         unsigned len;
         pp_lits(context & ctx, unsigned len, literal const *lits) : ctx(ctx), lits(lits), len(len) {}
-        pp_lits(context & ctx, literal_vector const& ls) : ctx(ctx), lits(ls.c_ptr()), len(ls.size()) {}
+        pp_lits(context & ctx, literal_vector const& ls) : ctx(ctx), lits(ls.data()), len(ls.size()) {}
     };
 
     inline std::ostream & operator<<(std::ostream & out, pp_lits const & pp) {

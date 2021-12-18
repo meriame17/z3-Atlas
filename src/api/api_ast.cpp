@@ -137,6 +137,11 @@ extern "C" {
         func_decl* d = to_func_decl(f);
         ast_manager& m = mk_c(c)->m();
         recfun::decl::plugin& p = mk_c(c)->recfun().get_plugin();
+        if (!p.has_def(d)) {
+            std::string msg = "function " + mk_pp(d, m) + " needs to be defined using rec_func_decl";
+            SET_ERROR_CODE(Z3_INVALID_ARG, msg.c_str());
+            return;
+        }
         expr_ref abs_body(m);
         expr_ref_vector _args(m);
         var_ref_vector _vars(m);
@@ -148,7 +153,7 @@ extern "C" {
                 return;            
             }
         }
-        expr_abstract(m, 0, n, _args.c_ptr(), to_expr(body), abs_body);
+        expr_abstract(m, 0, n, _args.data(), to_expr(body), abs_body);
         recfun::promise_def pd = p.get_promise_def(d);
         if (!pd.get_def()) {
             SET_ERROR_CODE(Z3_INVALID_ARG, nullptr);
@@ -159,7 +164,7 @@ extern "C" {
             return;
         }
         recfun_replace replace(m);
-        p.set_definition(replace, pd, n, _vars.c_ptr(), abs_body);
+        p.set_definition(replace, pd, true, n, _vars.data(), abs_body);
         Z3_CATCH;
     }
 
@@ -172,7 +177,7 @@ extern "C" {
             arg_list.push_back(to_expr(args[i]));
         }
         func_decl* _d = reinterpret_cast<func_decl*>(d);
-        app* a = mk_c(c)->m().mk_app(_d, num_args, arg_list.c_ptr());
+        app* a = mk_c(c)->m().mk_app(_d, num_args, arg_list.data());
         mk_c(c)->save_ast_trail(a);
         check_sorts(c, a);
         RETURN_Z3(of_ast(a));
@@ -714,6 +719,9 @@ extern "C" {
         else if (fid == mk_c(c)->get_seq_fid() && k == RE_SORT) {
             return Z3_RE_SORT;
         }
+        else if (fid == mk_c(c)->get_char_fid() && k == CHAR_SORT) {
+            return Z3_CHAR_SORT;
+        }
         else {
             return Z3_UNKNOWN_SORT;
         }
@@ -1202,6 +1210,8 @@ extern "C" {
 
             case OP_STRING_STOI: return Z3_OP_STR_TO_INT;
             case OP_STRING_ITOS: return Z3_OP_INT_TO_STR;
+            case OP_STRING_UBVTOS: return Z3_OP_UBV_TO_STR;
+            case OP_STRING_SBVTOS: return Z3_OP_SBV_TO_STR;
             case OP_STRING_LT: return Z3_OP_STRING_LT;
             case OP_STRING_LE: return Z3_OP_STRING_LE;
 
@@ -1216,6 +1226,19 @@ extern "C" {
             //case OP_RE_FULL_CHAR_SET: return Z3_OP_RE_FULL_SET;
             case OP_RE_EMPTY_SET: return Z3_OP_RE_EMPTY_SET;
             default:
+                return Z3_OP_INTERNAL;
+            }
+        }
+
+        if (mk_c(c)->get_char_fid() == _d->get_family_id()) {
+            switch (_d->get_decl_kind()) {
+            case OP_CHAR_CONST: return Z3_OP_CHAR_CONST;
+            case OP_CHAR_LE: return Z3_OP_CHAR_LE;
+            case OP_CHAR_TO_INT: return Z3_OP_CHAR_TO_INT;
+            case OP_CHAR_TO_BV: return Z3_OP_CHAR_TO_BV;
+            case OP_CHAR_FROM_BV: return Z3_OP_CHAR_FROM_BV;
+            case OP_CHAR_IS_DIGIT: return Z3_OP_CHAR_IS_DIGIT;
+            default: 
                 return Z3_OP_INTERNAL;
             }
         }

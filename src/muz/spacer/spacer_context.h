@@ -153,7 +153,7 @@ public:
     expr_ref_vector const &get_cube();
     void update_cube(pob_ref const &p, expr_ref_vector &cube);
 
-    bool has_pob() {return m_pob;}
+    bool has_pob() {return !!m_pob;}
     pob_ref &get_pob() {return m_pob;}
     unsigned weakness() {return m_weakness;}
 
@@ -235,7 +235,6 @@ class pred_transformer {
     public:
         frames (pred_transformer &pt) : m_pt (pt),
                                         m_size(0), m_sorted (true) {}
-        ~frames() {}
         void simplify_formulas ();
 
         pred_transformer& pt() const {return m_pt;}
@@ -356,7 +355,6 @@ class pred_transformer {
         rule2ptrule m_rules;
         tag2ptrule m_tags;
     public:
-        pt_rules() {}
         ~pt_rules() {for (auto &kv : m_rules) {dealloc(kv.m_value);}}
 
         bool find_by_rule(const datalog::rule &r, pt_rule* &ptr) {
@@ -439,7 +437,6 @@ class pred_transformer {
 
 public:
     pred_transformer(context& ctx, manager& pm, func_decl* head);
-    ~pred_transformer() {}
 
     inline bool use_native_mbp ();
     bool mk_mdl_rf_consistent(const datalog::rule *r, model &mdl);
@@ -458,7 +455,7 @@ public:
     func_decl* head() const {return m_head;}
     ptr_vector<datalog::rule> const& rules() const {return m_rules;}
     func_decl* sig(unsigned i) const {return m_sig[i];} // signature
-    func_decl* const* sig() {return m_sig.c_ptr();}
+    func_decl* const* sig() {return m_sig.data();}
     unsigned  sig_size() const {return m_sig.size();}
     expr*  transition() const {return m_transition;}
     expr*  init() const {return m_init;}
@@ -825,7 +822,6 @@ class pob_queue {
 
 public:
     pob_queue(): m_root(nullptr), m_max_level(0), m_min_depth(0) {}
-    ~pob_queue() {}
 
     void reset();
     pob* top();

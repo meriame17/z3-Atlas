@@ -43,7 +43,7 @@ namespace smt {
             return;
         numeral const & val = lower_bound(v).get_rational();
         value_sort_pair key(val, is_int_src(v));
-        TRACE("arith_eq", tout << mk_pp(get_enode(v)->get_owner(), get_manager()) << " = " << val << "\n";);
+        TRACE("arith_eq", tout << mk_pp(get_enode(v)->get_expr(), get_manager()) << " = " << val << "\n";);
         theory_var v2;
         if (m_fixed_var_table.find(key, v2)) {
             if (v2 < static_cast<int>(get_num_vars()) && is_fixed(v2) && lower_bound(v2).get_rational() == val) {
@@ -337,23 +337,19 @@ namespace smt {
             ctx.mk_justification(
                 ext_theory_eq_propagation_justification(
                     get_id(), r, 
-                    lits.size(), lits.c_ptr(),
-                    eqs.size(), eqs.c_ptr(),
+                    lits.size(), lits.data(),
+                    eqs.size(), eqs.data(),
                     _x, _y, 
                     antecedents.num_params(), antecedents.params("eq-propagate")));
         TRACE("arith_eq", tout << "detected equality: #" << _x->get_owner_id() << " = #" << _y->get_owner_id() << "\n";
               display_var(tout, x);
               display_var(tout, y); 
-              for (literal lit : lits) {
-                  ctx.display_detailed_literal(tout, lit);
-                  tout << "\n";
-              } 
-              for (auto const& p : eqs) {
-                  tout << mk_pp(p.first->get_owner(), m) << " = " << mk_pp(p.second->get_owner(), m) << "\n";
-              } 
+              for (literal lit : lits) 
+                  ctx.display_detailed_literal(tout, lit) << "\n";
+              for (auto const& p : eqs) 
+                  tout << pp(p.first, m) << " = " << pp(p.second, m) << "\n";
               tout << " ==> ";
-              tout << mk_pp(_x->get_owner(), m) << " = " << mk_pp(_y->get_owner(), m) << "\n";
-              );
+              tout << pp(_x, m) << " = " << pp(_y, m) << "\n";);
         ctx.assign_eq(_x, _y, eq_justification(js));
     }
 };

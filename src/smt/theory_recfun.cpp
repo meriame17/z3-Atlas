@@ -246,17 +246,23 @@ namespace smt {
 
     literal theory_recfun::mk_eq_lit(expr* l, expr* r) {
         literal lit;
-        if (m.is_true(r) || m.is_false(r)) {
-            std::swap(l, r);
-        }
-        if (m.is_true(l)) {
-            lit = mk_literal(r);
-        }
-        else if (m.is_false(l)) {
-            lit = ~mk_literal(r);
+        if (has_quantifiers(l) || has_quantifiers(r)) {
+            expr_ref eq1(m.mk_eq(l, r), m);
+            expr_ref fn(m.mk_fresh_const("rec-eq", m.mk_bool_sort()), m);
+            expr_ref eq(m.mk_eq(fn, eq1), m);
+            ctx.assert_expr(eq);
+            ctx.internalize_assertions();
+            lit = mk_literal(fn);
         }
         else {
-            lit = mk_eq(l, r, false);        
+            if (m.is_true(r) || m.is_false(r))
+                std::swap(l, r);
+            if (m.is_true(l))
+                lit = mk_literal(r);
+            else if (m.is_false(l))
+                lit = ~mk_literal(r);
+            else
+                lit = mk_eq(l, r, false);
         }
         ctx.mark_as_relevant(lit);
         return lit;
@@ -375,6 +381,13 @@ namespace smt {
         unsigned depth = get_depth(e.m_pred);
         expr_ref lhs(u().mk_fun_defined(d, args), m);
         expr_ref rhs = apply_args(depth, vars, args, e.m_cdef->get_rhs());
+        if (has_quantifiers(rhs)) {
+            expr_ref fn(m.mk_fresh_const("rec-eq", m.mk_bool_sort()), m);
+            expr_ref eq(m.mk_eq(fn, rhs), m);
+            ctx.assert_expr(eq);
+            ctx.internalize_assertions();
+            rhs = fn;
+        }
         literal_vector clause;
         for (auto & g : e.m_cdef->get_guards()) {
             expr_ref guard = apply_args(depth, vars, args, g);
@@ -436,13 +449,15 @@ namespace smt {
         }
         if (found) {
             m_num_rounds++;
+            if (!to_delete && !m_disabled_guards.empty()) 
+                to_delete = m_disabled_guards.back();
             if (to_delete) {
                 m_disabled_guards.erase(to_delete);
                 m_enabled_guards.push_back(to_delete);
                 IF_VERBOSE(2, verbose_stream() << "(smt.recfun :enable-guard " << mk_pp(to_delete, m) << ")\n");
             }
             else {
-                IF_VERBOSE(2, verbose_stream() << "(smt.recfun :increment-round)\n");
+                IF_VERBOSE(2, verbose_stream() << "(smt.recfun :increment-round " << m_num_rounds << ")\n");
             }
             for (expr* g : m_enabled_guards)
                 push_guard(g);

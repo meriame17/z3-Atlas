@@ -36,8 +36,10 @@ namespace seq {
         symbol         m_indexof_left, m_indexof_right;   // inverse of indexof: (indexof_left s t) + s + (indexof_right s t) = t, for s in t. 
         symbol         m_aut_step;                        // regex unfolding state
         symbol         m_accept;                          // regex
-        symbol         m_is_empty, m_is_non_empty;        // regex emptiness check
-        symbol         m_pre, m_post;                     // inverse of at: (pre s i) + (at s i) + (post s i) = s if 0 <= i < (len s)
+        symbol         m_is_empty;                        // regex emptiness check
+        symbol         m_is_non_empty;
+        symbol         m_pre, m_post;           // inverse of at: (pre s i) + (at s i) + (post s i) = s if 0 <= i < (len s)
+        symbol         m_postp;
         symbol         m_eq;                              // equality atom
         symbol         m_max_unfolding, m_length_limit;
 
@@ -70,18 +72,21 @@ namespace seq {
             }
             return mk("seq.align.m", e1, e2, e3, e4);
         }
-        expr_ref mk_accept(expr_ref_vector const& args) { return expr_ref(seq.mk_skolem(m_accept, args.size(), args.c_ptr(), m.mk_bool_sort()), m); }
+        expr_ref mk_accept(expr_ref_vector const& args) { return expr_ref(seq.mk_skolem(m_accept, args.size(), args.data(), m.mk_bool_sort()), m); }
         expr_ref mk_accept(expr* s, expr* i, expr* r) { return mk(m_accept, s, i, r, nullptr, m.mk_bool_sort()); }
-        expr_ref mk_is_non_empty(expr* r, expr* u, expr* n) { return mk(m_is_non_empty, r, u, n, m.mk_bool_sort(), false); }
         expr_ref mk_is_empty(expr* r, expr* u, expr* n) { return mk(m_is_empty, r, u, n, m.mk_bool_sort(), false); }
+        expr_ref mk_is_non_empty(expr* r, expr* u, expr* n) { return mk(m_is_non_empty, r, u, n, m.mk_bool_sort(), false); }
 
         expr_ref mk_indexof_left(expr* t, expr* s, expr* offset = nullptr) { return mk(m_indexof_left, t, s, offset); }
         expr_ref mk_indexof_right(expr* t, expr* s, expr* offset = nullptr) { return mk(m_indexof_right, t, s, offset); }
-        expr_ref mk_last_indexof_left(expr* t, expr* s, expr* offset = nullptr) { return mk("seq.last_indexof_left", t, s, offset); }
-        expr_ref mk_last_indexof_right(expr* t, expr* s, expr* offset = nullptr) { return mk("seq.last_indexof_right", t, s, offset); }
+        expr_ref mk_contains_left(expr* t, expr* s, expr* offset = nullptr) { return mk("seq.cnt.l", t, s, offset); }
+        expr_ref mk_contains_right(expr* t, expr* s, expr* offset = nullptr) { return mk("seq.cnt.r", t, s, offset); }
+        expr_ref mk_last_indexof_left(expr* t, expr* s, expr* offset = nullptr) { return mk("seq.lidx.l", t, s, offset); }
+        expr_ref mk_last_indexof_right(expr* t, expr* s, expr* offset = nullptr) { return mk("seq.lidx.r", t, s, offset); }
 
         expr_ref mk_tail(expr* s, expr* i) { return mk(m_tail, s, i); }
         expr_ref mk_post(expr* s, expr* i) { return mk(m_post, s, i); }
+        expr_ref mk_postp(expr* s, expr* i) { return mk(m_postp, s, i); }
         expr_ref mk_ite(expr* c, expr* t, expr* e) { return mk(symbol("seq.if"), c, t, e, nullptr, t->get_sort()); }
         expr_ref mk_last(expr* s);
         expr_ref mk_first(expr* s);
@@ -93,6 +98,8 @@ namespace seq {
         expr_ref mk_is_digit(expr* ch) { return mk(symbol("seq.is_digit"), ch, nullptr, nullptr, nullptr, m.mk_bool_sort()); }
         expr_ref mk_unit_inv(expr* n);
         expr_ref mk_digit2int(expr* ch) { return mk(symbol("seq.digit2int"), ch, nullptr, nullptr, nullptr, a.mk_int()); }
+        expr_ref mk_digit2bv(expr* ch, sort* bv_sort);
+        expr_ref mk_ubv2ch(expr* b) { return mk(symbol("seq.ubv2ch"), b, nullptr, nullptr, nullptr, seq.mk_char_sort()); }
         expr_ref mk_left(expr* x, expr* y, expr* z = nullptr) { return mk("seq.left", x, y, z); }
         expr_ref mk_right(expr* x, expr* y, expr* z = nullptr) { return mk("seq.right", x, y, z); }
         expr_ref mk_max_unfolding_depth(unsigned d);
@@ -133,6 +140,8 @@ namespace seq {
                 a.is_unsigned(i, idx);
         }
         bool is_align(expr const* e) const { return is_skolem(symbol("seq.align.m"), e); }
+        bool is_align_l(expr const* e) const { return is_skolem(symbol("seq.align.l"), e); }
+        bool is_align_r(expr const* e) const { return is_skolem(symbol("seq.align.r"), e); }
         MATCH_BINARY(is_align);
         bool is_post(expr* e, expr*& s, expr*& start);
         bool is_pre(expr* e, expr*& s, expr*& i);
@@ -145,12 +154,12 @@ namespace seq {
         bool is_length_limit(expr* e) const { return is_skolem(m_length_limit, e); }
         bool is_length_limit(expr* p, unsigned& lim, expr*& s) const; 
         bool is_is_empty(expr* e) const { return is_skolem(m_is_empty, e); }
-        bool is_is_non_empty(expr* e) const { return is_skolem(m_is_non_empty, e); }
         bool is_is_empty(expr* e, expr*& r, expr*& u, expr*& n) const { 
             return is_skolem(m_is_empty, e) && (r = to_app(e)->get_arg(0), u = to_app(e)->get_arg(1), n = to_app(e)->get_arg(2), true); 
         }
-        bool is_is_non_empty(expr* e, expr*& r, expr*& u, expr*& n) const { 
-            return is_skolem(m_is_non_empty, e) && (r = to_app(e)->get_arg(0), u = to_app(e)->get_arg(1), n = to_app(e)->get_arg(2), true); 
+        bool is_is_non_empty(expr* e) const { return is_skolem(m_is_non_empty, e); }
+        bool is_is_non_empty(expr* e, expr*& r, expr*& u, expr*& n) const {
+            return is_skolem(m_is_non_empty, e) && (r = to_app(e)->get_arg(0), u = to_app(e)->get_arg(1), n = to_app(e)->get_arg(2), true);            
         }
 
         void decompose(expr* e, expr_ref& head, expr_ref& tail);

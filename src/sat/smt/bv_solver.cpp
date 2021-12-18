@@ -55,6 +55,7 @@ namespace bv {
         m_ackerman(*this),
         m_bb(m, get_config()),
         m_find(*this) {
+        m_bb.set_flat(false);
     }
 
     void solver::fixed_var_eh(theory_var v1) {
@@ -95,14 +96,20 @@ namespace bv {
         result.reset();
         unsigned i = 0;
         for (literal b : m_bits[v]) {
-            switch (ctx.s().value(b)) {
-            case l_false:
-                break;
-            case l_undef:
-                return false;
-            case l_true:
+            if (b == ~m_true) 
+                ;
+            else if (b == m_true) 
                 result += power2(i);
-                break;
+            else {
+                switch (ctx.s().value(b)) {
+                case l_false:
+                    break;
+                case l_undef:
+                    return false;
+                case l_true:
+                    result += power2(i);
+                    break;
+                }
             }
             ++i;
         }
@@ -349,28 +356,9 @@ namespace bv {
             ctx.drat_eq_def(leq, eq);
         }
 
-        static unsigned s_count = 0;
-
         sat::literal_vector lits;
         switch (c.m_kind) {
         case bv_justification::kind_t::eq2bit:
-            ++s_count;
-//            std::cout << "eq2bit " << s_count << "\n";
-#if 0
-            if (s_count == 1899) {
-                std::cout << "eq2bit " << mk_bounded_pp(var2expr(c.m_v1), m) << " == " << mk_bounded_pp(var2expr(c.m_v2), m) << "\n";
-                std::cout << mk_bounded_pp(literal2expr(~c.m_antecedent), m, 4) << "\n";
-                std::cout << mk_bounded_pp(literal2expr(c.m_consequent), m, 4) << "\n";
-                std::cout << literal2expr(c.m_consequent) << "\n";
-#if 0
-                solver_ref slv = mk_smt2_solver(m, ctx.s().params());
-                slv->assert_expr(eq);
-                slv->assert_expr(literal2expr(c.m_antecedent));
-                slv->assert_expr(literal2expr(~c.m_consequent));
-                slv->display(std::cout) << "(check-sat)\n";
-#endif
-            }
-#endif
             lits.push_back(~leq);
             lits.push_back(~c.m_antecedent);
             lits.push_back(c.m_consequent);
@@ -419,7 +407,7 @@ namespace bv {
             if (p.m_atom) {
                 for (auto vp : *p.m_atom)
                     propagate_bits(vp);
-                for (auto const& eq : p.m_atom->eqs()) 
+                for (eq_occurs const& eq : p.m_atom->eqs()) 
                     propagate_eq_occurs(eq);                
             }
             else 
@@ -490,6 +478,9 @@ namespace bv {
             if (!assign_bit(bit2, v1, v2, idx, bit1, false))
                 break;
         }
+        if (s().value(m_bits[v1][m_wpos[v1]]) != l_undef)
+            find_wpos(v1);
+
         return num_assigned > 0;
     }
 
@@ -585,7 +576,7 @@ namespace bv {
             hash(solver& s) :s(s) {}
             bool operator()(theory_var v) const {
                 literal_vector const& a = s.m_bits[v];
-                return string_hash(reinterpret_cast<char*>(a.c_ptr()), a.size() * sizeof(sat::literal), 3);
+                return string_hash(reinterpret_cast<char*>(a.data()), a.size() * sizeof(sat::literal), 3);
             }
         };
         eq eq_proc(*this);
@@ -678,28 +669,37 @@ namespace bv {
             result->m_bits[i].append(m_bits[i]);
             result->m_zero_one_bits[i].append(m_zero_one_bits[i]);
         }
+        result->set_solver(&ctx.s());
         for (theory_var i = 0; i < static_cast<theory_var>(get_num_vars()); ++i)
             if (find(i) != i)
-                result->m_find.merge(i, find(i));
-        result->m_prop_queue.append(m_prop_queue);
-        for (unsigned i = 0; i < m_bool_var2atom.size(); ++i) {
-            atom* a = m_bool_var2atom[i];
-            if (!a)
-                continue;
+                result->m_find.set_root(i, find(i));
 
-            atom* new_a = new (result->get_region()) atom(i);
-            result->m_bool_var2atom.setx(i, new_a, nullptr);
-            for (auto vp : *a)
-                new_a->m_occs = new (result->get_region()) var_pos_occ(vp.first, vp.second, new_a->m_occs);
-            for (auto const& occ : a->eqs()) {
+        auto clone_atom = [&](atom const& a) {
+            atom* new_a = new (result->get_region()) atom(a.m_bv);
+            result->m_bool_var2atom.setx(a.m_bv, new_a, nullptr);
+            for (auto [v, p] : a)
+                new_a->m_occs = new (result->get_region()) var_pos_occ(v, p, new_a->m_occs);
+            for (eq_occurs const& occ : a.eqs()) {
                 expr* e = occ.m_node->get_expr();
                 expr_ref e2(tr(e), tr.to());
                 euf::enode* n = ctx.get_enode(e2);
+                SASSERT(tr.to().contains(e2));
                 new_a->m_eqs = new (result->get_region()) eq_occurs(occ.m_bv1, occ.m_bv2, occ.m_idx, occ.m_v1, occ.m_v2, occ.m_literal, n, new_a->m_eqs);
             }
-            new_a->m_def = a->m_def;
-            new_a->m_var = a->m_var;
-            // validate_atoms();
+            new_a->m_def = a.m_def;
+            new_a->m_var = a.m_var;           
+        };
+
+        for (atom* a : m_bool_var2atom) 
+            if (a)
+                clone_atom(*a);
+        // validate_atoms();        
+
+        for (auto p : m_prop_queue) {
+            propagation_item q = p;
+            if (p.is_atom())
+                q = propagation_item(result->get_bv2a(p.m_atom->m_bv));
+            result->m_prop_queue.push_back(q);
         }
         return result;
     }
@@ -733,7 +733,7 @@ namespace bv {
         values[n->get_root_id()] = bv.mk_numeral(val, m_bits[v].size());
     }
 
-    trail_stack<euf::solver>& solver::get_trail_stack() {
+    trail_stack& solver::get_trail_stack() {
         return ctx.get_trail_stack();
     }
 
