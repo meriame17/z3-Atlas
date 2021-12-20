@@ -39,15 +39,12 @@ namespace smt
         static bool is_under_approximation;
         static bool str_solver_checked;
         static bool assignement_dumped;
-        static bool is_undeapp_over;
-        
 
         const theory_str_params &m_params;
 
         th_rewriter m_rewrite;
         arith_util m_util_a;
         seq_util m_util_s;
-        
         //decl_plugin apl;
 
         ast_manager &m;
@@ -57,7 +54,7 @@ namespace smt
         obj_hashtable<expr> m_has_length; // is length applied
         expr_ref_vector m_length;         // length applications themselves
         unsigned m_fresh_id;
-        unsigned p_bound = unsigned(4);
+        unsigned p_bound = unsigned(1);
         unsigned q_bound = unsigned(1);
         unsigned cut_size = unsigned(1);
         unsigned scope;
@@ -92,25 +89,12 @@ namespace smt
         scoped_vector<expr_pair> m_word_diseq_todo;
         scoped_vector<expr_pair> m_not_contains_todo;
         scoped_vector<expr_pair> m_membership_todo;
-        //scoped_vector<expr*> formula; 
-        expr_ref_vector axioms;
+        scoped_vector<expr*> formula; 
         unsigned flag=0;
         
         unsigned flag1=0;
         obj_map<expr, zstring> candidate_model;
-        obj_map<expr, std::vector<std::pair<expr_ref, expr_ref>>> vars_map;
-         std::vector <expr_ref> pk_vars;
-
-       obj_map<expr,std::vector<std::pair<std::string, std::string>>> states_map;
-       void   find_states(
-        expr_ref elt, std::vector<std::pair<std::string, std::string>> *states);
-       void find_vars( expr_ref elt, 
-        std::vector<std::pair<expr_ref, expr_ref>> *vars);
-       std::map <std::string, expr_ref> st_map;
-       std::vector<std::pair<expr_ref, expr_ref>> phi_sharp;
         obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> fresh_int_vars;
-        obj_map<expr,std::string> model;
-       // std::vector<std::pair<expr*,std::string >> model;
         unsigned vars_count;
 
     public:
@@ -148,11 +132,7 @@ namespace smt
        // app* construct_basic_str_ctr( ast_manager& m,std::vector<std::pair<expr_ref, expr_ref>> vars, unsigned l_bound, unsigned s_bound);
         std::vector<std::pair<expr_ref,expr_ref>>  init_int_vars(unsigned p, std::string s,
         std::vector<std::pair<std::string, std::string>> *states);
-        std::vector<std::pair<expr_ref,expr_ref>>  init_int_vars2(expr_ref e, unsigned p, std::string s,
-        std::vector<std::pair<std::string, std::string>> *states);
         std::vector<std::pair<expr_ref,expr_ref>>  mk_fresh_vars(expr_ref str_v, std::string s);
-        void print_model(context &local_ctx) ;
-        std::vector<int> get_segment_vector();
         app *mk_fresh_const(std::string name, sort *s, unsigned k, unsigned l);
         app *mk_fresh_const(std::string name, sort *s, unsigned k);
         app *mk_fresh_const(std::string name, sort *s);
@@ -161,16 +141,11 @@ namespace smt
         std::vector<std::pair<expr_ref, expr_ref>> rhs ,
         std::vector<std::pair<std::string, std::string>> states_l,
         std::vector<std::pair<std::string, std::string>> states_r);
-        expr_ref get_in_state_index(expr_ref elt,
-            std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>>  prod_vars,
-           std::vector< std::pair<std::string, std::string>>  p_states);
-        expr_ref get_state_index(std::string elt);
-       
         void parikh_img(ast_manager& m, 
+                std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> product_vars);
+        void parikh_img1(ast_manager& m, 
                 std::vector< std::pair<std::string, std::string>> states,
-                std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> prod_vars,
-                 std::vector<std::string> reachable2, 
-                std::string final_s );
+                std::vector<std::pair<std::pair<expr_ref, expr_ref>,expr_ref>> prod_vars);
         app * mk_value_helper(app * n) ;
         expr * mk_string(zstring const& str);
         expr * get_eqc_value(expr * n, bool & hasEqcValue);
@@ -184,8 +159,7 @@ namespace smt
         app*  construct_string_from_int_array(std::vector<std::pair<expr_ref, expr_ref>> int_varr,model_generator &mg);
         void print_assignement();
         std::vector<std::pair<expr_ref, expr_ref>> mk_newvar(zstring s,std::vector<std::pair<std::string, std::string>> *states);
-        std::vector<std::pair<expr_ref, expr_ref>> mk_newvar2(expr_ref elt,zstring s,std::vector<std::pair<std::string, std::string>> *states);
-
+     
         final_check_status final_check_eh() override;
         model_value_proc *mk_value(enode *n, model_generator &mg) override;
         void init_model(model_generator &m) override;
@@ -193,37 +167,16 @@ namespace smt
         lbool validate_unsat_core(expr_ref_vector &unsat_core) override;
 
         void add_length_axiom(expr *n);
-        void find(obj_map<expr_ref,std::vector<std::pair<std::string, std::string>>> states_map,
-                expr_ref elt,
-                  std::vector<std::pair<std::string, std::string>> states);
-         bool  find(obj_map <std::string, expr_ref> st_ma,
-                        std::string s,
-                        expr_ref e);
-        bool contains_elt(app* elt, obj_map <expr_ref, expr_ref> vec);
-        void print_terms(const expr_ref_vector& terms);
-        std::string expr2str(expr* node);
-        bool contains(std::string elt, std::vector<std::string> vec) ;
-        int contains_elt(expr_ref elt, std::vector<std::pair<expr_ref, expr_ref>>vec);
         bool contains_elt(app *elt, scoped_vector<app *> vec);
         bool contains_elt(expr_ref elt, scoped_vector<expr_ref> vec);
         bool contains_elt(expr_pair elt, scoped_vector<expr_pair> vec);
         bool contains_elt(expr* elt, scoped_vector<expr*> vec) ;
         bool contains_elt(app* elt, std::vector<app*> vec) ;
         bool contains_elt(expr_ref elt, std::vector<expr_ref> vec) ;
-        bool contains_elt(std::string elt,
-            obj_map <std::string, expr_ref> st_map);
-        bool contains_elt(std::string elt, std::vector<std::string> vec) ;
-        bool contains_elt(expr_ref elt, obj_map <expr_ref, expr_ref> vec) ;
-        bool contains_elt(expr* elt, obj_map<expr*, 
-        std::vector<std::pair<expr_ref, expr_ref>>> vec);
-        bool contains_elt(app* elt, obj_map<expr_ref, std::vector<std::pair<expr_ref, expr_ref>>> vec);
-
+        bool contains(std::string elt, std::vector<std::string> vec) ;
         bool contains_elt(expr* elt,
           obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> vec,
           std::vector<std::pair<expr_ref, expr_ref>> *vars);
-        bool contains_elt(std::pair<std::string, std::string>pr,
-         std::vector<std::pair<std::string, std::string>> vec) ;
-
         void word_eq_under_approx(expr* lhs, expr* rhs, expr_ref_vector &items);
         void get_nodes_in_concat(expr *node, ptr_vector<expr> &nodeList);
         /**

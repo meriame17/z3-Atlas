@@ -719,7 +719,7 @@ namespace smt {
          if (m_params.m_string_solver == "atlas") {
             setup_atlas();
         }
-        else  if (m_params.m_string_solver == "z3str3") {
+        if (m_params.m_string_solver == "z3str3") {
             setup_str();
         }
         else if (m_params.m_string_solver == "seq") {
