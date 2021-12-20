@@ -75,7 +75,6 @@ z3_add_component(smt
     theory_wmaxsat.cpp
     uses_theory.cpp
     watch_list.cpp
-    theory_atlas/theory_atlas.cpp
   COMPONENT_DEPENDENCIES
     solver_assertions
     bit_blaster
