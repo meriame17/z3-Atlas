@@ -192,7 +192,6 @@ public:
 
     void theory_atlas::print_ctx(context &ctx) {  // test_hlin
         std::cout << "~~~~~ print ctx start ~~~~~~~\n";
-//        context& ctx = get_context();
         unsigned nFormulas = ctx.get_num_asserted_formulas();
         expr_ref_vector Literals(get_manager()), Assigns(get_manager());
         ctx.get_guessed_literals(Literals);
@@ -308,9 +307,7 @@ public:
         }else{
             if(!is_undeapp_over){
             TRACE("str", tout << "equality under approximations starts" << std::endl;);
-         //   std:: cout << "over app over"<<"\n";
             expr_ref_vector new_int_const(m);
-                            // std::cout << __LINE__ <<is_over_approximation <<"\n";     
             word_eq_under_approx(lhs,rhs, new_int_const);
             is_undeapp_over=true;
             }
@@ -355,13 +352,7 @@ public:
         get_nodes_in_concat(lhs,lhs_nodes);
         get_nodes_in_concat(rhs,rhs_nodes);
        
-     /* for (unsigned k=0; k<lhs_nodes.size(); k++){
-                        std::cout  << mk_pp(lhs_nodes[k],m) << "\n";
-      }
-     // std::cout << "=++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n";
-     /*  for (unsigned k=0; k<rhs_nodes.size(); k++){
-                        std::cout  << mk_pp(rhs_nodes[k],m) << "\n";
-      }*/
+   
   /*
             zstring s;
             if (is_app(lhs_nodes[k])) {
@@ -391,20 +382,14 @@ public:
                     if (!str_vars.contains(v))
                         str_vars.push_back(v);
                 }
-                //std::cout<<mk_pp(m_util_s.str.mk_length(v),m)<<"\n";
                 len_r.push_back(m_util_s.str.mk_length(v));
             }
             
 
         }*/
        // add_axiom(m_util_a.mk_eq(m_util_a.mk_add(len_l), m_util_a.mk_add(len_r)));
-       // std::cout<< "length constraint "<< mk_pp(m_util_a.mk_eq(m_util_a.mk_add(len_l), m_util_a.mk_add(len_r)), m)<< "\n";
-        //std::cout<<"Displaying vars and elt of concat"<<"\n";
-        //std::cout<<"---------------------------"<<"\n";
-       /* for(auto elt: str_vars){
-            zstring s;
-            if(m_util_s.str.is_string(elt, s)) std::cout<<mk_pp(elt,m)<<"\n";
-        }*/
+       
+       
                         
 
         ast_manager &m = get_manager();
@@ -485,14 +470,10 @@ public:
                    
                    
                     find_states( n,&states);  
-                   /* for(unsigned j=0; j < states.size(); j++){
-                        std::cout << __LINE__ <<"*********************"<< states[j].first<< ",," << states[j].second << "\n";
-                    }*/
-
+                  
                 }
          
             if(count>0 && count < lhs_nodes.size()) {
-               // std::cout << "((((((((((((((((((((((((((((((((((((("<< count <<"\n";
                 std::string newv= expr2str(all_vars_l[all_vars_l.size()-1].first) ;
                 std::string newv2;
                 if(m_util_s.str.is_string(elt, zs)) newv2= expr2str(elt).substr(1, expr2str(elt).size()-2);
@@ -500,26 +481,20 @@ public:
               // :: .substr(0, expr2str(elt).find("\""));
 
                 newv= newv.substr(0, newv.find("!tmp") ); /// .split("!tmp";
-                //newv.substr(newv.find("!tmp"));
-             //   std::cout << "########################################"<<  <<"\n";
-
-              //  newv2= newv2.substr(0,newv2.find("!tmp"));
+                
                 expr_ref n_ex(mk_fresh_const(newv+newv2+"!tmp", int_sort), m);
 
                 expr_ref n_exp(mk_fresh_const('p'+newv+newv2+"!tmp"+std::to_string(count), int_sort), m);
-              //   std::cout<< "(declare-const "<<mk_pp(n_ex,m)<< __LINE__ <<" Int )\n";
-              //  std::cout<< "(declare-const "<<mk_pp(n_exp,m)<< " Int )\n";
-               
+             
                 int_vars.push_back(n_ex);
                 int_vars.push_back(n_exp);
 
                   axioms.push_back(m_util_a.mk_eq(n_ex, m_util_a.mk_numeral(rational(32), true)));
-               // axioms.push_back(m_util_a.mk_eq(n_exp, m_util_a.mk_numeral(rational(1), true)));
+                axioms.push_back(m_util_a.mk_eq(n_exp, m_util_a.mk_numeral(rational(1), true)));
 
                    
 
                 all_vars_l.push_back(std::make_pair(n_ex, n_exp));
-                     //   std::cout << states_l[states_l.size()-1].second <<"!!!!!!!!!!!!!!" <<states[0].first << "\n";
                                         states_l.push_back(std::make_pair(states_l[states_l.size()-1].second, states[0].first));
 
                 
@@ -535,10 +510,7 @@ public:
         
        }
         count=0;
-        //  std::cout<<"######################################################\n";
-         /*for (auto elt: rhs_nodes){
-             std::cout<< mk_pp(elt,m) << "\n";
-         }*/
+      
         for(auto  elt: rhs_nodes){
                           //   std:: cout << " !!!!!" << mk_pp(elt,m) <<"\n";
 
@@ -581,37 +553,26 @@ public:
                 states_map.find(elt,states); 
             }
              
-             //std::cout <<"count>0 && count < rhs_nodes.size()-1" << count<<"iiiiiiiiiiiiii"<< rhs_nodes.size()-1 <<"\n";
             if(count>0 && count < rhs_nodes.size()) {
-               // std::cout << "########################################"<<expr2str(all_vars_r[all_vars_r.size()-1].first) <<"\n";
                 std::string newv= expr2str(all_vars_r[all_vars_r.size()-1].first) ;
                 std::string newv2; 
                 if(m_util_s.str.is_string(elt, zs)) newv2= expr2str(elt).substr(1, expr2str(elt).size()-2);
                 // 
                 else newv2=expr2str(elt);
-
-
-                newv= newv.substr(0, newv.find("!tmp") ); /// .split("!tmp";
-                //newv.substr(newv.find("!tmp"));
-             //   std::cout << "########################################"<<  <<"\n";
-
-///                newv2= newv2.substr(0,newv2.find("!tmp"));
+                newv= newv.substr(0, newv.find("!tmp") ); 
                 expr_ref n_ex(mk_fresh_const(newv+newv2+"!tmp", int_sort), m);
  
                 expr_ref n_exp(mk_fresh_const('p'+newv+newv2+"!tmp"+std::to_string(count), int_sort), m);
                 int_vars.push_back(n_ex);
                 int_vars.push_back(n_exp); 
                  axioms.push_back(m_util_a.mk_eq(n_ex, m_util_a.mk_numeral(rational(32), true)));
-                // axioms.push_back(m_util_a.mk_eq(n_exp, m_util_a.mk_numeral(rational(1), true)));
-               // std::cout<< "(declare-const "<<mk_pp(n_ex,m)<< __LINE__ <<" Int )\n";
-               // std::cout<< "(declare-const "<<mk_pp(n_exp,m)<< " Int )\n";
+                 axioms.push_back(m_util_a.mk_eq(n_exp, m_util_a.mk_numeral(rational(1), true)));
+         
                 all_vars_r.push_back(std::make_pair(n_ex, n_exp));
-          //    std::cout << states_r[states_r.size()-1].second <<"!!!!!!!!!!!!!" <<states[0].first << "\n";
                  states_r.push_back(std::make_pair(states_r[states_r.size()-1].second, states[0].first));
                             
             }
             all_vars_r.insert(all_vars_r.end(),vars.begin(), vars.end() );  
-           // std::cout << "222222!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
             count+=1;
             states_r.insert(states_r.end(),states.begin(), states.end() );
            
@@ -621,59 +582,21 @@ public:
          
 
         }
-   /*    std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-          std::cout << all_vars_r.size()<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";      
-       for(auto elt: all_vars_r){
-           rhs_len.push_back(elt.second);
-            std::cout<< "____"<< mk_pp(elt.first,m )<<",,,"<< mk_pp(elt.second,m )<<"\n";
-        }
-        std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-                  std::cout << all_vars_l.size()<<"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";      
-
-        for(auto elt: all_vars_l){
-           lhs_len.push_back(elt.second);
-            std::cout<< "____"<< mk_pp(elt.first,m )<<",,,"<< mk_pp(elt.second,m )<<"\n";
-        }*/
-     //   std::cout << "___________________________________________________________________________\n";
-       /* for(unsigned j =0; j<  all_vars_l.size(); j++){
-           std::cout << mk_pp(all_vars_l[j].first,m ) << ",,," << mk_pp(all_vars_l[j].second,m ) << "\n";
-            
-            //std::cout << __LINE__ <<"*********************"<< states_r[j].first<< ",," << states_r[j].second << "\n";
-        }
-        for(unsigned j =0; j<  all_vars_r.size(); j++){
-           std::cout << mk_pp(all_vars_l[j].first,m ) << ",,," << mk_pp(all_vars_r[j].second,m ) << "\n";
-            //std::cout << __LINE__ <<"*********************"<< states_r[j].first<< ",," << states_r[j].second << "\n";
-        }*/
-        
-        // std::cout << "___________________________________________________________________________\n";
-          //   axioms.push_back(m_util_a.mk_eq(m_util_a.mk_add(lhs_len), m_util_a.mk_add(rhs_len)));
-           // std::cout<< __LINE__ << "**********"<< mk_pp(m_util_a.mk_eq(m_util_a.mk_add(lhs_len), m_util_a.mk_add(rhs_len)),m) <<"\n";
-
+   
         app* phi_right= construct_basic_str_ctr(m,all_vars_r, p_bound*rhs_vars.size(),q_bound,states_r); 
                                             
               
         app* phi_left= construct_basic_str_ctr(m,all_vars_l, p_bound*lhs_vars.size(),q_bound,states_l);  
 
-               
-        /* std::cout<< "all vars l ======================"<<all_vars_l.size()<<"iiiiiiiiiiiiiiiiiiiiiiii\n";
-         for (auto elt: all_vars_l){
-             std::cout << mk_pp(elt.first, m ) <<"..." << mk_pp(elt.second,m) << "\n";
-         }
-                  std::cout<< "all vars r ======================"<<all_vars_r.size()<<"iiiiiiiiiiiiiiiiiiiiiiii\n";
-
-         for (auto elt: all_vars_r){
-             std::cout << mk_pp(elt.first, m ) << "..." << mk_pp(elt.second,m) << "\n";
-         }*/
+       
     for(auto ex:int_vars){
             
-                  ensure_enode(ex);
-                  
-                  /*  ctx.internalize(ex, false); 
+                   ctx.internalize(ex, false); 
                     SASSERT(ctx.get_enode(ex) != NULL); 
                     SASSERT(ctx.e_internalized(ex)); 
                     enode* nex = ctx.get_enode(ex);
 
-                    ctx.mark_as_relevant(nex);*/
+                    ctx.mark_as_relevant(nex);
             
 
             }
@@ -751,7 +674,7 @@ public:
                     pk_vars.push_back(p_pro);
                     if(!contains_elt( p_pro,pp_vars)) pp_vars.push_back(p_pro);
 
-                     axioms.push_back(m_util_a.mk_ge(p_pro, zero));
+                    axioms.push_back(m_util_a.mk_ge(p_pro, zero));
 
                     product_vars.push_back(std::make_pair(i_var,p_pro));
                     p_states.push_back(std::make_pair(states_l[k].first+states_r[j].first, states_l[k].second+states_r[j].second));
@@ -830,9 +753,9 @@ public:
 
         parikh_img(m, p_states, product_vars, reachable2, final_s);
 
-        /*for (auto elt: axioms){
+        for (auto elt: axioms){
             add_axiom(elt);
-        }*/
+        }
 
        /*int_expr_solver ies(m, get_fparams());
         ies.initialize(ctx);
@@ -921,9 +844,7 @@ public:
                 axioms.push_back( m_util_a.mk_eq(
                    m_util_a.mk_add(
                        out_t, m_util_a.mk_uminus(in_t)), one))  ;
-               /* std::cout << mk_pp(m_util_a.mk_eq(
-                   m_util_a.mk_add(
-                       out_t, m_util_a.mk_uminus(in_t)), one),m) <<__LINE__<< "\n";*/
+              
         }
         else if (st[k]== final_s )
             {
@@ -987,7 +908,6 @@ public:
         app* empty_s= m_util_a.mk_eq(v.first, empty_char);
      //    axioms.push_back(m.mk_or(m.mk_and(gt_min, le_max), empty_s));
        //  axioms.push_back(m_util_a.mk_le(v.second, parikh_val_bound));
-      //std::cout<< "Basic constraints"<< mk_pp(m_util_a.mk_le(v.second, parikh_val_bound), m)<<"\n";
        //   axioms.push_back(le_max );
          // axioms.push_back(gt_min );
          if (expr2str(v.first) == "ep"){
@@ -1024,7 +944,6 @@ public:
             app* eq1= m_util_a.mk_eq(vars[j].second, one);
              axioms.push_back(eq1); 
             j++;
-                              //  std::cout<< "Basic LOOPS  constraints 1"<< mk_pp(eq1, m)<<"\n";
 
 
             }
@@ -1548,8 +1467,6 @@ public:
 
     void theory_atlas::new_eq_eh(theory_var x, theory_var y) {
          
-
-            // std::cout  <<__FUNCTION__  << "\t"<< mk_pp(get_enode(x)->get_expr(), m)<<"="<< mk_pp(get_enode(y)->get_expr(),m)<< "\n";
     
         m_word_eq_var_todo.push_back({x, y});
 
@@ -1963,15 +1880,15 @@ public:
         v.init(&ctx);
         context&  arith_ctx= ctx.get_theory(m_util_a.get_family_id())->get_context();
         app* value = nullptr;
-        for(auto elt: pp_vars){
+        
+       /* for(auto elt: pp_vars){
             rational val; 
+            rational val2;
             
-             //m_util_a.is_numeral(root_e->get_expr(), val)  ;
-            if(v.get_value_equiv(elt, val) && val != 0){
-            std::cout <<"*********************"<< val<<"\n";
-            }
-            std::cout <<"*********************"<< __LINE__<<"\n";
+             //m_util_a.is_numeral(root_e->get_expr(), val)  ;            
+             
 
+            
 
              // theory_mi_arith* tha = get_th_arith<theory_mi_arith>(ctx, afid, elt);
 
@@ -1988,8 +1905,8 @@ public:
                             value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(elt),mg)->mk_value(mg, assignments);
                             m_util_a.is_numeral(value, val);// && val.is_int())                 
 
-                       }*/
-       }
+                       }
+       }*/
                  
             for(obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> ::iterator it = fresh_int_vars.begin(); it != fresh_int_vars.end(); ++it){
                expr_ref e(m);
@@ -2309,8 +2226,6 @@ public:
 
 
             ctx.internalize(e, false);
-       //    std::cout<< "ADDING AXIOM " << mk_pp(e, m)<<std::endl;
-
            
             literal l{ctx.get_literal(e)};
 
@@ -2343,7 +2258,6 @@ public:
 
 
             ctx.internalize(e, false);
-           // std::cout<< "ADDING AXIOM " << mk_pp(e, m)<<std::endl;
 
            
             literal l{ctx.get_literal(e)};
@@ -3077,27 +2991,32 @@ public:
          model_generator &mg){
 
 
-                            
-             arith_value local_arith_value(m);
-                 local_arith_value.init(&ctx);
+            
+            arith_value v(m);
+            v.init(&ctx); 
+            arith_value local_arith_value(m);
+            local_arith_value.init(&ctx);
 
                 std::stringstream ss;
              
                 unsigned new_q_bound= q_bound/cut_size;
                 unsigned k=1,j=0;
                 expr_ref_vector assignments{m};
-                
-         //   std::cout << ctx.get_theory(m_util_a.get_family_id())<< "____________"<<"\n";
-            /*for(auto elt: assignments){
-            }*/
-        
+           for(auto elt:int_varr ){
+               rational val; 
+               get_arith_value(elt.second, val);
+           }
+
             while(k<int_varr.size()){
                 std::string res="";
-                while(j<q_bound){                 
+                while(j<q_bound){   
+                              
 
                      rational val;
                      if(get_arith_value(int_varr[j+k].first,val))  std::cout<<" \n";
-                     else{                 
+                     else{   
+
+                          v.get_value(int_varr[j+k].first,val);              
                           app* value = nullptr;  
                           expr_ref vall(m);           
                    //     local_arith_value.get_value(int_varr[j+k].first, val);
@@ -3109,12 +3028,11 @@ public:
 
 
                        }
-                    
+
                      char s= char(val.get_int64());  
 
                     if(s !=' ') res= res+s;
-                    j++;                 
-                                         
+                    j++;  
 
                 }
                 rational val2 ;                  
@@ -3124,17 +3042,14 @@ public:
                      
                      else{
                           app* value = nullptr;                 
-                        local_arith_value.get_value_equiv(int_varr[j+k].first, val2);
+                        v.get_value(int_varr[k].second, val2);
 
 
                             //value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_varr[k].second),mg)->mk_value(mg, assignments);
                          //   m_util_a.is_numeral(value, val2) ;//&& val2.is_int())
                        }
-                  //  std::cout<<"int parikh vars model "<<mk_pp(int_varr[k].second,m)<< "="<< val2<<"\n";
 
-                
             for(unsigned i=0; i<val2; i++) ss << res;                 
-
 
            if(k<int_varr.size()-1){ 
                rational val3 ;                  
@@ -3144,12 +3059,12 @@ public:
 
                      else{
                           app* value = nullptr;
-                            local_arith_value.get_value_equiv(int_varr[j+k].first, val3);
+                             v.get_value(int_varr[k+1].first, val3);
 
                            // value=ctx.get_theory(m_util_a.get_family_id())->mk_value(ctx.get_enode(int_varr[k+1].first),mg)->mk_value(mg, assignments);
                            // m_util_a.is_numeral(value, val3) ;//&& val3.is_int())
                        }
-            char s= char(val3.get_int64());                      
+            char s= char(val3.get_int64());  
             if(s !=' ') ss <<s;
 
             }
@@ -3158,7 +3073,6 @@ public:
 
             }
                 
-    
 
         zstring st(ss.str().data());  
         return to_app(mk_string(st));
@@ -3218,8 +3132,7 @@ public:
         int_vars.push_back(ex_p);
         cst_vars.push_back(ex);
         
-      //  std::cout<< "(declare-const "<<mk_pp(ex,m)<< __LINE__ <<" Int )\n";
-      //  std::cout<< "(declare-const "<<mk_pp(ex_p,m)<< " Int )\n";
+     
 
       //   axioms.push_back(m_util_a.mk_eq(ex_p, one));
         if(k<len){
@@ -3272,7 +3185,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
 
 
              
-                 //   std::cout<< "mknew var _____________ "<<mk_pp(elt, m)<<"\n";
 
          ast_manager &m = get_manager();
          expr_ref ep(mk_fresh_const("ep", int_sort), m);
@@ -3295,7 +3207,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
             res.push_back(std::make_pair(ep, pep));
              int_vars.push_back(ep);
         int_vars.push_back(pep);
-          //  std::cout << "---" << mk_pp(ep,m ) << ","<< mk_pp(pep, m) << "\n";
             // normal transition
             (*states).push_back(std::make_pair("q"+st+std::to_string(s0+j),"q"+st+std::to_string(s0+j+1)));
             std::string strn= st;
@@ -3306,7 +3217,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
              int_vars.push_back(vr);
         int_vars.push_back(p_vr);
             res.push_back(std::make_pair(vr, p_vr));
-           // std::cout << "---" << mk_pp(vr,m ) << ","<< mk_pp(p_vr, m) <<"___"<<mk_pp(m_util_a.mk_eq(vr, m_util_a.mk_numeral(rational(int(st[j])), true)),m) <<"\n";
              axioms.push_back(m_util_a.mk_eq(vr, m_util_a.mk_numeral(rational(int(st[j])), true)));
             j++;
     }
@@ -3316,7 +3226,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
      res.push_back(std::make_pair(ep, pep));
       int_vars.push_back(ep);
         int_vars.push_back(pep);
-    // std::cout << "---" << mk_pp(ep,m ) << ","<< mk_pp(pep, m) << "\n";
      states_map.insert(elt, *states);
      
        
@@ -3351,9 +3260,7 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
  }
     void   theory_atlas::find_vars( expr_ref elt, 
         std::vector<std::pair<expr_ref, expr_ref>> *vars){
-          //  std::cout <<mk_pp(elt, m)<< "__________" <<__LINE__<<"\n";
  for(obj_map<expr,std::vector<std::pair<expr_ref, expr_ref>>> ::iterator it = fresh_int_vars.begin(); it != fresh_int_vars.end(); ++it){
-//std::cout << mk_pp(&((*it).get_key()),m)<<"__________" <<__LINE__<<"\n";
                   if(m.are_equal(elt,&((*it).get_key()))
                       ){
                             
@@ -3375,7 +3282,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
         std::vector<std::pair<expr_ref, expr_ref>> res;
 
      //  if(find_var_by_label(int_vars, s))
-                //    std::cout << "init int var _____________________" << mk_pp(elt,m ) << "\n";
 
         ast_manager &m = get_manager();
         expr_ref ep(mk_fresh_const("ep", int_sort), m);
@@ -3392,7 +3298,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
         res.push_back(std::make_pair(ep, pep));
         int_vars.push_back(ep);
         int_vars.push_back(pep);
-      // std::cout << "---" << mk_pp(ep,m ) << ","<< mk_pp(pep, m) << "\n";
 
    
         (*states).push_back(std::make_pair("q"+s+std::to_string(st),"q"+s+std::to_string(st)));
@@ -3402,7 +3307,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
          int_vars.push_back(xep);
         int_vars.push_back(pep2);
         res.push_back(std::make_pair(xep, pep2));
-//                    std::cout << "---" << mk_pp(xep,m ) << ","<< mk_pp(pep2, m) << "\n";
 
         st+=new_q_bound;
          if(k<p_bound-1) {
@@ -3415,7 +3319,6 @@ std::vector<std::pair<expr_ref, expr_ref>>  theory_atlas::mk_newvar2(
              int_vars.push_back(xep);
              int_vars.push_back(pep);
             res.push_back(std::make_pair(xep, pep));
-          //  std::cout << "---" << mk_pp(xep,m ) << ","<< mk_pp(pep, m) << "\n";
 
          } 
 
@@ -3520,19 +3423,14 @@ void theory_atlas::print_model(context &local_ctx) {
                  //expr_ref e(m);
                  std::stringstream ss;
                  unsigned k=1,j=0;
-                // std::vector
-                 while(k<(*it).get_value().size()){
-                 // std::cout << "****"<<(*it).get_value().size()<<"*********"<<k<<"**************" << mk_pp((*it).get_value()[k].first,m)<<"*******\n";
-                
+                 while(k<(*it).get_value().size()){                
                 std::string res="";
                 while(j<q_bound){                 
 
                      rational val;
                      
                      local_arith_value.get_value_equiv((*it).get_value()[j+k].first, val);
-                    // if(get_arith_value((*it).get_value()[j+k].first,val))  std::cout<<" \n";
                       
-             //     std::cout<<"int  model "<<mk_pp((*it).get_value()[j+k].first,m) << "="<< val<<"\n";
                
                        
                     
@@ -3545,8 +3443,6 @@ void theory_atlas::print_model(context &local_ctx) {
                 rational val2 ;                  
                 local_arith_value.get_value_equiv((*it).get_value()[k].second, val2);            
 
-                  //  std::cout<<"int parikh vars model "<<mk_pp((*it).get_value()[k].second,m)<< "="<< val2<<"\n";
-
                 
             for(unsigned i=0; i<val2; i++)  ss << res;    
 
@@ -3557,7 +3453,6 @@ void theory_atlas::print_model(context &local_ctx) {
                 local_arith_value.get_value_equiv((*it).get_value()[k+1].first, val3); 
             char s= char(val3.get_int64());   
             if(s !=' ') ss <<s;
-         //  std::cout<<__LINE__<<"int  model "<<mk_pp((*it).get_value()[k+1].first,m) << "="<< val3<<"\n";
             }
             k=k+3;
             j=0;
@@ -3569,7 +3464,6 @@ void theory_atlas::print_model(context &local_ctx) {
         zstring st(ss.str().data()); 
         for(obj_map<expr,std::string> ::iterator it2 = model.begin(); it2 != model.end(); ++it2){
           if(m.are_equal(&((*it).get_key()), &((*it2).get_key()))) {
-             // std::cout <<"&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << mk_pp(&((*it).get_key()),m) <<"*********"<<ss.str()<<"\n";
                             model.insert(&((*it).get_key()), ss.str());
              // (*it2).get_value() = ss.str();
           }
@@ -3577,24 +3471,16 @@ void theory_atlas::print_model(context &local_ctx) {
       }
 
         //model.push_back(std::make_pair(&ee,ss.str()));
-             //    std::cout  << mk_pp(&(*it).get_key(),m) << "____*************" <<ss.str()<<"\n";
 
                 /* for(auto elt:(*it).get_value() ){
                                           expr exx= *(elt.first);
                     local_arith_value.get_value_equiv(elt.first, val);
-                    std::cout <<mk_pp(elt.first,m)<<"_________"<<  val<<"\n";
                  }*/
               
    }
 
       
-   /* for(auto elt: model){
-        std::cout  <<  "_---------------\n"; 
-        std::cout <<elt.get_value()<<"\n";
-         std::cout  << mk_pp(&(elt.get_key()),m) << "____*************";
 
-    }*/
-    
     //&& val.is_int();
   //  print_term(local_arith_value, term, size);
 }

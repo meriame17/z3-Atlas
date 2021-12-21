@@ -57,7 +57,7 @@ namespace smt
         obj_hashtable<expr> m_has_length; // is length applied
         expr_ref_vector m_length;         // length applications themselves
         unsigned m_fresh_id;
-        unsigned p_bound = unsigned(4);
+        unsigned p_bound = unsigned(3);
         unsigned q_bound = unsigned(1);
         unsigned cut_size = unsigned(1);
         unsigned scope;
